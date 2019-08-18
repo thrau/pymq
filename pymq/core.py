@@ -16,6 +16,10 @@ Empty = Empty
 
 class Queue(abc.ABC):
 
+    @property
+    def name(self):
+        raise NotImplementedError
+
     def get(self, block=True, timeout=None):
         raise NotImplementedError
 

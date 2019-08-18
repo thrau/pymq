@@ -84,6 +84,10 @@ class TestEventBus(unittest.TestCase):
         self.assertIn(('some_event_listener', 'hello'), self.invocations)
         self.assertIn(('some_stateful_event_listener', 'hello'), self.invocations)
 
+    def test_queue_name(self):
+        q = pymq.queue('test_queue')
+        self.assertEqual('test_queue', q.name)
+
     @timeout_decorator.timeout(2)
     def test_queue_put_get(self):
         q = pymq.queue('test_queue')

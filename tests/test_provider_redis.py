@@ -100,6 +100,11 @@ class TestRedisEventbus(unittest.TestCase):
 
     # TODO: test explicit channels
 
+    def test_queue_name(self):
+        q = pymq.queue('test_queue')
+
+        self.assertEqual('test_queue', q.name)
+
     @timeout_decorator.timeout(2)
     def test_queue_put_get(self):
         q = pymq.queue('test_queue')

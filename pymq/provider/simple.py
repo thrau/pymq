@@ -33,7 +33,9 @@ class SimpleEventBus(EventBus):
 
     def queue(self, name: str) -> Queue:
         if name not in self.queues:
-            self.queues[name] = PythonQueue()
+            q = PythonQueue()
+            q.name = name
+            self.queues[name] = q
         return self.queues[name]
 
     def add_listener(self, callback, channel, pattern):

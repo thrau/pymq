@@ -34,10 +34,15 @@ class RedisQueue(Queue):
     Queue implementation over Redis. Uses very naive serialization using pickle and Base64.
     """
 
-    def __init__(self, rds: redis.Redis, qname: str) -> None:
+    def __init__(self, rds: redis.Redis, name: str, qname: str) -> None:
         super().__init__()
         self.rds = rds
+        self._name = name
         self.qname = qname
+
+    @property
+    def name(self):
+        return self._name
 
     def get(self, block=True, timeout=None):
         if block:
@@ -216,7 +221,7 @@ class RedisEventBus(EventBus):
             self.pubsub.psubscribe(*patterns)
 
     def queue(self, name: str) -> Queue:
-        return RedisQueue(self.rds, self.channel_prefix + name)
+        return RedisQueue(self.rds, name, self.channel_prefix + name)
 
     @staticmethod
     def _call_listener(fn, data):
