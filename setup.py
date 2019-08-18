@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="symmetry-eventbus",
-    version="0.0.1",
+    version="0.1.0.dev1",
     author="Thomas Rausch",
     author_email="thomas@rauschig.org",
     description="A simple message-oriented middleware library built for IPC",
