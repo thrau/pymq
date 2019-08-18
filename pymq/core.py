@@ -7,7 +7,7 @@ from collections import defaultdict
 from queue import Empty
 from typing import Dict, Callable, Union, List, Any, Optional
 
-from eventbus.typing import fullname, deep_from_dict, load_class
+from pymq.typing import fullname, deep_from_dict, load_class
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ def init(factory, start_bus=True):
 
 def publish(event, channel=None):
     if _bus is None:
-        logger.error('Event bus was not initialized, cannot publish message. Please run eventbus.init')
+        logger.error('Event bus was not initialized, cannot publish message. Please run pymq.init')
         return
 
     if channel is None:
@@ -155,7 +155,7 @@ def publish(event, channel=None):
 
 def queue(name) -> Queue:
     if _bus is None:
-        logger.error('Event bus was not initialized, cannot get queue. Please run eventbus.init')
+        logger.error('Event bus was not initialized, cannot get queue. Please run pymq.init')
         raise ValueError('Bus not set yet')
 
     return _bus.queue(name)

@@ -4,10 +4,10 @@ from typing import List
 
 from timeout_decorator import timeout_decorator
 
-import eventbus
-from eventbus import rpc, expose, remote, RpcResponse, RpcRequest
-from eventbus.provider.redis import RedisEventBus, RedisConfig
-from eventbus.typing import deep_to_dict, deep_from_dict
+import pymq
+from pymq import rpc, expose, remote, RpcResponse, RpcRequest
+from pymq.provider.redis import RedisEventBus, RedisConfig
+from pymq.typing import deep_to_dict, deep_from_dict
 from tests.testutils import RedisResource
 
 
@@ -83,16 +83,16 @@ class TestRedisRpc(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.redis.setUp()
-        self.redis_eventbus = eventbus.init(RedisConfig(self.redis.rds))
+        self.redis_eventbus = pymq.init(RedisConfig(self.redis.rds))
 
     def tearDown(self) -> None:
         super().tearDown()
-        eventbus.shutdown()
+        pymq.shutdown()
         self.redis.tearDown()
 
     @timeout_decorator.timeout(2)
     def test_marshall_rpc_request(self):
-        request = eventbus.RpcRequest('some_function', 'callback_queue', ['simple_arg'])
+        request = pymq.RpcRequest('some_function', 'callback_queue', ['simple_arg'])
 
         request_dict = deep_to_dict(request)
         self.assertEqual({'fn': 'some_function', 'callback_queue': 'callback_queue', 'args': ['simple_arg']},

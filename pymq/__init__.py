@@ -1,9 +1,9 @@
 import atexit
 
-from eventbus.core import init, shutdown, publish, add_listener, remove_listener, listener, Queue, Empty, \
+from pymq.core import init, shutdown, publish, add_listener, remove_listener, listener, Queue, Empty, \
     queue, rpc, expose, remote, RpcRequest, RpcResponse
 
-name = "eventbus"
+name = "pymq"
 
 __all__ = [
     # server

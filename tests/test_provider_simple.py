@@ -3,8 +3,8 @@ import unittest
 
 from timeout_decorator import timeout_decorator
 
-import eventbus
-from eventbus.provider.simple import SimpleEventBus
+import pymq
+from pymq.provider.simple import SimpleEventBus
 
 
 class MyEvent:
@@ -12,15 +12,15 @@ class MyEvent:
 
 
 def init_listeners():
-    @eventbus.listener
+    @pymq.listener
     def my_event_listener(event: MyEvent):
         TestEventBus.invocations.append(('my_event_listener', event))
 
-    @eventbus.listener('some/channel')
+    @pymq.listener('some/channel')
     def some_event_listener(event):
         TestEventBus.invocations.append(('some_event_listener', event))
 
-    @eventbus.listener('some/other/channel')
+    @pymq.listener('some/other/channel')
     def some_other_event_listener(event):
         TestEventBus.invocations.append(('some_other_event_listener', event))
 
@@ -29,8 +29,8 @@ class StatefulListener:
 
     def __init__(self) -> None:
         super().__init__()
-        eventbus.add_listener(self.my_stateful_event_listener)
-        eventbus.add_listener(self.some_stateful_event_listener, 'some/channel')
+        pymq.add_listener(self.my_stateful_event_listener)
+        pymq.add_listener(self.some_stateful_event_listener, 'some/channel')
 
     def my_stateful_event_listener(self, event: MyEvent):
         TestEventBus.invocations.append(('my_stateful_event_listener', event))
@@ -46,13 +46,13 @@ class TestEventBus(unittest.TestCase):
     def setUpClass(cls) -> None:
         super().setUpClass()
         init_listeners()
-        eventbus.init(SimpleEventBus)
+        pymq.init(SimpleEventBus)
         StatefulListener()
 
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
-        eventbus.shutdown()
+        pymq.shutdown()
 
     def setUp(self) -> None:
         super().setUp()
@@ -60,7 +60,7 @@ class TestEventBus(unittest.TestCase):
 
     def test_publish_with_type(self):
         event = MyEvent()
-        eventbus.publish(event)
+        pymq.publish(event)
         self.assertEqual(2, len(self.invocations))
         self.assertIn(('my_event_listener', event), self.invocations)
         self.assertIn(('my_stateful_event_listener', event), self.invocations)
@@ -71,22 +71,22 @@ class TestEventBus(unittest.TestCase):
         def listener(event: MyEvent):
             called.set()
 
-        eventbus.add_listener(listener)
-        eventbus.remove_listener(listener)
-        eventbus.publish(MyEvent())
+        pymq.add_listener(listener)
+        pymq.remove_listener(listener)
+        pymq.publish(MyEvent())
 
         self.assertEqual(2, len(self.invocations))  # should be from the other two listeners
         self.assertFalse(called.is_set())
 
     def test_publish_with_channel(self):
-        eventbus.publish('hello', channel='some/channel')
+        pymq.publish('hello', channel='some/channel')
         self.assertEqual(2, len(self.invocations))
         self.assertIn(('some_event_listener', 'hello'), self.invocations)
         self.assertIn(('some_stateful_event_listener', 'hello'), self.invocations)
 
     @timeout_decorator.timeout(2)
     def test_queue_put_get(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
         q.put('elem1')
         q.put('elem2')
 
@@ -95,8 +95,8 @@ class TestEventBus(unittest.TestCase):
 
     @timeout_decorator.timeout(2)
     def test_queue_size(self):
-        q1 = eventbus.queue('test_queue_1')
-        q2 = eventbus.queue('test_queue_2')
+        q1 = pymq.queue('test_queue_1')
+        q2 = pymq.queue('test_queue_2')
         self.assertEqual(0, q1.qsize())
         self.assertEqual(0, q2.qsize())
 
@@ -114,12 +114,12 @@ class TestEventBus(unittest.TestCase):
 
     @timeout_decorator.timeout(3)
     def test_queue_get_blocking_timeout(self):
-        q = eventbus.queue('test_queue')
-        self.assertRaises(eventbus.Empty, q.get, timeout=1)
+        q = pymq.queue('test_queue')
+        self.assertRaises(pymq.Empty, q.get, timeout=1)
 
     def test_queue_get_nowait_on_empty_queue(self):
-        q = eventbus.queue('test_queue')
-        self.assertRaises(eventbus.Empty, q.get_nowait)
+        q = pymq.queue('test_queue')
+        self.assertRaises(pymq.Empty, q.get_nowait)
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 import logging
 from queue import Queue as PythonQueue
 
-from eventbus.core import EventBus, Queue
+from pymq.core import EventBus, Queue
 
 logger = logging.getLogger(__name__)
 

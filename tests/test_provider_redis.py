@@ -5,8 +5,8 @@ from typing import NamedTuple
 
 from timeout_decorator import timeout_decorator
 
-import eventbus
-from eventbus.provider.redis import RedisConfig, RedisEventBus
+import pymq
+from pymq.provider.redis import RedisConfig, RedisEventBus
 from tests.testutils import RedisResource
 
 
@@ -33,13 +33,13 @@ class TestRedisEventbus(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        eventbus.shutdown()
+        pymq.shutdown()
         self.redis.setUp()
-        self.redis_eventbus = eventbus.init(RedisConfig(self.redis.rds))
+        self.redis_eventbus = pymq.init(RedisConfig(self.redis.rds))
 
     def tearDown(self) -> None:
         super().tearDown()
-        eventbus.shutdown()
+        pymq.shutdown()
         self.redis.tearDown()
 
     def test_channel_registers_correctly(self):
@@ -48,7 +48,7 @@ class TestRedisEventbus(unittest.TestCase):
 
         self.assertEqual(0, len(self.redis.rds.pubsub_channels()), 'expected no subscribers, but got %s' % self.redis.rds.pubsub_channels())
 
-        eventbus.add_listener(listener)
+        pymq.add_listener(listener)
 
         channels = self.redis.rds.pubsub_channels()
 
@@ -63,13 +63,13 @@ class TestRedisEventbus(unittest.TestCase):
         def listener2(event: MyRedisEvent):
             pass
 
-        eventbus.add_listener(listener1)
-        eventbus.add_listener(listener2)
+        pymq.add_listener(listener1)
+        pymq.add_listener(listener2)
 
         self.assertEqual(1, len(self.redis.rds.pubsub_channels()))
-        eventbus.remove_listener(listener1)
+        pymq.remove_listener(listener1)
         self.assertEqual(1, len(self.redis.rds.pubsub_channels()))
-        eventbus.remove_listener(listener2)
+        pymq.remove_listener(listener2)
         self.assertEqual(0, len(self.redis.rds.pubsub_channels()))
 
     def test_pubsub(self):
@@ -78,8 +78,8 @@ class TestRedisEventbus(unittest.TestCase):
         def listener(event: MyRedisEvent):
             called.set()
 
-        eventbus.add_listener(listener)
-        eventbus.publish(MyRedisEvent())
+        pymq.add_listener(listener)
+        pymq.publish(MyRedisEvent())
 
         self.assertTrue(called.wait(2))
 
@@ -90,8 +90,8 @@ class TestRedisEventbus(unittest.TestCase):
             called.payload = event.payload
             called.set()
 
-        eventbus.add_listener(listener)
-        eventbus.publish(EventWithPayload(Payload('foobar', 42)))
+        pymq.add_listener(listener)
+        pymq.publish(EventWithPayload(Payload('foobar', 42)))
 
         self.assertTrue(called.wait(2))
         self.assertIsInstance(called.payload, Payload)
@@ -102,7 +102,7 @@ class TestRedisEventbus(unittest.TestCase):
 
     @timeout_decorator.timeout(2)
     def test_queue_put_get(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
         q.put('elem1')
         q.put('elem2')
 
@@ -111,7 +111,7 @@ class TestRedisEventbus(unittest.TestCase):
 
     @timeout_decorator.timeout(2)
     def test_queue_get_blocking(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
         event = threading.Event()
 
         def put():
@@ -127,24 +127,24 @@ class TestRedisEventbus(unittest.TestCase):
 
     @timeout_decorator.timeout(3)
     def test_queue_get_blocking_timeout(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
         then = time.time()
-        self.assertRaises(eventbus.Empty, q.get, timeout=1)
+        self.assertRaises(pymq.Empty, q.get, timeout=1)
         diff = time.time() - then
         self.assertAlmostEqual(1, diff, delta=0.3)
 
     @timeout_decorator.timeout(3)
     def test_queue_get_nowait_timeout(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
         then = time.time()
-        self.assertRaises(eventbus.Empty, q.get_nowait)
+        self.assertRaises(pymq.Empty, q.get_nowait)
         diff = time.time() - then
         self.assertAlmostEqual(0, diff, delta=0.3)
 
     @timeout_decorator.timeout(2)
     def test_queue_size(self):
-        q1 = eventbus.queue('test_queue_1')
-        q2 = eventbus.queue('test_queue_2')
+        q1 = pymq.queue('test_queue_1')
+        q2 = pymq.queue('test_queue_2')
         self.assertEqual(0, q1.qsize())
         self.assertEqual(0, q2.qsize())
 
@@ -161,7 +161,7 @@ class TestRedisEventbus(unittest.TestCase):
         self.assertEqual(0, q2.qsize())
 
     def test_queue_primitive_types(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
 
         q.put('abc')
         self.assertIsInstance(q.get(), str)
@@ -173,7 +173,7 @@ class TestRedisEventbus(unittest.TestCase):
         self.assertIsInstance(q.get(), float)
 
     def test_queue_collection_types(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
 
         q.put(('a', 1))
         v = q.get()
@@ -194,7 +194,7 @@ class TestRedisEventbus(unittest.TestCase):
         self.assertIsInstance(v['b'], str)
 
     def test_queue_complex_types(self):
-        q = eventbus.queue('test_queue')
+        q = pymq.queue('test_queue')
 
         q.put(EventWithPayload(Payload('foo', 42)))
         v = q.get()

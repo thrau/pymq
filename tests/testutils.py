@@ -19,7 +19,7 @@ class RedisResource(TestResource):
     rds: redislite.Redis
 
     def setUp(self):
-        self.tmpfile = tempfile.mktemp('.db', 'symmetry_test_')
+        self.tmpfile = tempfile.mktemp('.db', 'pymq_test_')
         self.rds = redislite.Redis(self.tmpfile, decode_responses=True)
         self.rds.get('dummykey')  # run a first command to initiate
 

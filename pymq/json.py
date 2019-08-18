@@ -1,6 +1,6 @@
 import json
 
-from eventbus.typing import deep_to_dict, deep_from_dict, load_class
+from pymq.typing import deep_to_dict, deep_from_dict, load_class
 
 
 class DeepDictEncoder(json.JSONEncoder):

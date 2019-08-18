@@ -6,8 +6,8 @@ from concurrent.futures.thread import ThreadPoolExecutor
 
 import redis
 
-from eventbus.core import EventBus, Queue, Empty
-from eventbus.json import DeepDictDecoder, DeepDictEncoder
+from pymq.core import EventBus, Queue, Empty
+from pymq.json import DeepDictDecoder, DeepDictEncoder
 
 logger = logging.getLogger(__name__)
 

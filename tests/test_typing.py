@@ -2,8 +2,8 @@ import json
 import unittest
 from typing import Dict, List, Tuple, Set, Any
 
-from eventbus.json import DeepDictEncoder, DeepDictDecoder
-from eventbus.typing import deep_to_dict, deep_from_dict
+from pymq.json import DeepDictEncoder, DeepDictDecoder
+from pymq.typing import deep_to_dict, deep_from_dict
 
 
 class SimpleNested:
