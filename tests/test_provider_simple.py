@@ -1,10 +1,9 @@
 import threading
 import unittest
 
-from timeout_decorator import timeout_decorator
-
 import pymq
 from pymq.provider.simple import SimpleEventBus
+from tests.base.queue import AbstractQueueTest
 
 
 class MyEvent:
@@ -37,6 +36,17 @@ class StatefulListener:
 
     def some_stateful_event_listener(self, event):
         TestEventBus.invocations.append(('some_stateful_event_listener', event))
+
+
+class SimpleQueueTest(unittest.TestCase, AbstractQueueTest):
+
+    def setUp(self) -> None:
+        super().setUp()
+        pymq.init(SimpleEventBus)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        pymq.shutdown()
 
 
 class TestEventBus(unittest.TestCase):
@@ -83,47 +93,6 @@ class TestEventBus(unittest.TestCase):
         self.assertEqual(2, len(self.invocations))
         self.assertIn(('some_event_listener', 'hello'), self.invocations)
         self.assertIn(('some_stateful_event_listener', 'hello'), self.invocations)
-
-    def test_queue_name(self):
-        q = pymq.queue('test_queue')
-        self.assertEqual('test_queue', q.name)
-
-    @timeout_decorator.timeout(2)
-    def test_queue_put_get(self):
-        q = pymq.queue('test_queue')
-        q.put('elem1')
-        q.put('elem2')
-
-        self.assertEqual('elem1', q.get())
-        self.assertEqual('elem2', q.get())
-
-    @timeout_decorator.timeout(2)
-    def test_queue_size(self):
-        q1 = pymq.queue('test_queue_1')
-        q2 = pymq.queue('test_queue_2')
-        self.assertEqual(0, q1.qsize())
-        self.assertEqual(0, q2.qsize())
-
-        q1.put('elem1')
-        self.assertEqual(1, q1.qsize())
-        self.assertEqual(0, q2.qsize())
-
-        q1.put('elem2')
-        self.assertEqual(2, q1.qsize())
-        self.assertEqual(0, q2.qsize())
-
-        q1.get()
-        self.assertEqual(1, q1.qsize())
-        self.assertEqual(0, q2.qsize())
-
-    @timeout_decorator.timeout(3)
-    def test_queue_get_blocking_timeout(self):
-        q = pymq.queue('test_queue')
-        self.assertRaises(pymq.Empty, q.get, timeout=1)
-
-    def test_queue_get_nowait_on_empty_queue(self):
-        q = pymq.queue('test_queue')
-        self.assertRaises(pymq.Empty, q.get_nowait)
 
 
 if __name__ == '__main__':
