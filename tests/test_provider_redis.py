@@ -1,3 +1,4 @@
+import queue
 import unittest
 
 import pymq
@@ -34,6 +35,43 @@ class RedisQueueTest(unittest.TestCase, RedisTestHelper, AbstractQueueTest):
     def tearDown(self) -> None:
         super().tearDown()
         super().tearDownEventbus()
+
+
+class InitSubscribersTest(unittest.TestCase, RedisTestHelper):
+
+    def test_subscribe_before_init(self):
+        invocations = queue.Queue()
+
+        def handler(event: str):
+            invocations.put(event)
+
+        pymq.subscribe(handler, channel='early/subscription')
+
+        pymq.publish('hello', channel='early/subscription')  # doesn't do anything
+
+        try:
+            self.setUpEventbus()
+            pymq.publish('hello', channel='early/subscription')
+            self.assertEqual('hello', invocations.get(timeout=1))
+            self.assertEqual(0, invocations.qsize())
+        finally:
+            self.tearDownEventbus()
+
+    def test_unsubscribe_before_init(self):
+        invocations = queue.Queue()
+
+        def handler(event: str):
+            invocations.put(event)
+
+        pymq.subscribe(handler, channel='early/subscription')
+        pymq.unsubscribe(handler, channel='early/subscription')
+
+        try:
+            self.setUpEventbus()
+            pymq.publish('hello', channel='early/subscription')
+            self.assertRaises(queue.Empty, invocations.get, timeout=0.5)
+        finally:
+            self.tearDownEventbus()
 
 
 class RedisPubSubTest(unittest.TestCase, RedisTestHelper, AbstractPubSubTest):

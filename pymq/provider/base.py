@@ -9,6 +9,7 @@ from pymq.typing import fullname
 
 logger = logging.getLogger(__name__)
 
+
 def inspect_listener(fn) -> str:
     spec = inspect.getfullargspec(fn)
 

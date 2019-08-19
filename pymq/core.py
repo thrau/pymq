@@ -3,11 +3,10 @@ import inspect
 import logging
 import threading
 import uuid
-from collections import defaultdict
 from queue import Empty
 from typing import Dict, Callable, Union, List, Any, Optional, Tuple
 
-from pymq.typing import fullname, deep_from_dict, load_class
+from pymq.typing import deep_from_dict, load_class
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +79,7 @@ class EventBus(abc.ABC):
         raise NotImplementedError
 
 
-_subscribers: Dict[Tuple[str, bool], List[Callable]] = defaultdict(list)
+_uninitialized_subscribers: List[Tuple[Callable, str, bool]] = list()
 _remote_fns: Dict[str, Callable] = dict()
 
 _bus: Optional[EventBus] = None
@@ -119,57 +118,20 @@ def topic(name, pattern=False):
     return _WrapperTopic(name, pattern)
 
 
-def inspect_listener(fn) -> str:
-    spec = inspect.getfullargspec(fn)
-
-    if hasattr(fn, '__self__'):
-        # method is bound to an object
-        if len(spec.args) != 2:
-            raise ValueError('Listener functions need exactly one arguments')
-
-        if spec.args[1] not in spec.annotations:
-            raise ValueError('Please annotate the event class with an appropriate type')
-
-        event_type = spec.annotations[spec.args[1]]
-        return fullname(event_type)
-
-    else:
-        if len(spec.args) != 1:
-            raise ValueError('Listener functions need exactly one arguments')
-
-        if spec.args[0] not in spec.annotations:
-            raise ValueError('Please annotate the event class with an appropriate type')
-
-        event_type = spec.annotations[spec.args[0]]
-        return fullname(event_type)
-
-
 def subscribe(callback, channel=None, pattern=False):
     with _lock:
-        if channel is None:
-            channel = inspect_listener(callback)
-            pattern = False
-
-        logger.debug('adding to channel "%s" a callback %s', channel, callback)
-
-        _subscribers[(channel, pattern)].append(callback)
-
-        if _bus is not None:
+        if _bus:
             _bus.subscribe(callback, channel, pattern)
+        else:
+            _uninitialized_subscribers.append((callback, channel, pattern))
 
 
 def unsubscribe(callback, channel=None, pattern=False):
     with _lock:
-        if channel is None:
-            channel = inspect_listener(callback)
-            pattern = False
-
-        callbacks = _subscribers.get((channel, pattern))
-        if callback:
-            callbacks.remove(callback)
-
-        if _bus is not None:
+        if _bus:
             _bus.unsubscribe(callback, channel, pattern)
+        else:
+            _uninitialized_subscribers.remove((callback, channel, pattern))
 
 
 def subscriber(*args, **kwargs):
@@ -190,6 +152,12 @@ def init(factory, start_bus=True):
         _bus = factory()
         if start_bus:
             start()
+
+        for (callback, channel, pattern) in _uninitialized_subscribers:
+            _bus.subscribe(callback, channel, pattern)
+
+        _uninitialized_subscribers.clear()
+
         return _bus
 
 
@@ -197,9 +165,6 @@ def publish(event, channel=None):
     if _bus is None:
         logger.error('Event bus was not initialized, cannot publish message. Please run pymq.init')
         return
-
-    if channel is None:
-        channel = fullname(event)
 
     return _bus.publish(event, channel)
 
@@ -236,7 +201,7 @@ def shutdown():
         logger.debug('global event bus stopped')
         _runner = None
         _bus = None
-        _subscribers.clear()
+        _uninitialized_subscribers.clear()
         _remote_fns.clear()
 
 
@@ -366,13 +331,9 @@ def expose(fn, channel=None):
 
         callback = _rpc_wrapper
 
-        _subscribers[(channel, False)].append(callback)
         _remote_fns[channel] = fn
 
-        logger.debug('bus is %s', _bus)
-
-        if _bus is not None:
-            _bus.subscribe(callback, channel, False)
+        subscribe(callback, channel, False)
 
 
 def remote(*args, **kwargs):

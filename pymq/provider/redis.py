@@ -144,6 +144,10 @@ class RedisEventBus(AbstractEventBus):
 
         logger.debug('exitting eventbus listen loop')
 
+    def subscribe(self, callback, channel=None, pattern=False):
+        with self._lock:
+            super().subscribe(callback, channel, pattern)
+
     def close(self):
         with self._lock:
             if self._closed or not self._started:
