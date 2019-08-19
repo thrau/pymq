@@ -1,14 +1,11 @@
+import abc
 import time
-import unittest
 from typing import List
 
 from timeout_decorator import timeout_decorator
 
 import pymq
-from pymq import rpc, expose, remote, RpcResponse, RpcRequest
-from pymq.provider.redis import RedisEventBus, RedisConfig
 from pymq.typing import deep_to_dict, deep_from_dict
-from tests.testutils import RedisResource
 
 
 class EchoCommand:
@@ -75,20 +72,8 @@ class RpcHolder:
         return EchoResponse('%s %s!' % (self.prefix, cmd.param))
 
 
-class TestRedisRpc(unittest.TestCase):
-    redis: RedisResource = RedisResource()
-
-    redis_eventbus: RedisEventBus
-
-    def setUp(self) -> None:
-        super().setUp()
-        self.redis.setUp()
-        self.redis_eventbus = pymq.init(RedisConfig(self.redis.rds))
-
-    def tearDown(self) -> None:
-        super().tearDown()
-        pymq.shutdown()
-        self.redis.tearDown()
+# noinspection PyUnresolvedReferences
+class AbstractRpcTest(abc.ABC):
 
     @timeout_decorator.timeout(2)
     def test_marshall_rpc_request(self):
@@ -98,7 +83,7 @@ class TestRedisRpc(unittest.TestCase):
         self.assertEqual({'fn': 'some_function', 'callback_queue': 'callback_queue', 'args': ['simple_arg']},
                          request_dict)
 
-        request_unmarshalled = deep_from_dict(request_dict, RpcRequest)
+        request_unmarshalled = deep_from_dict(request_dict, pymq.RpcRequest)
 
         self.assertEqual('some_function', request_unmarshalled.fn)
         self.assertEqual('callback_queue', request_unmarshalled.callback_queue)
@@ -106,104 +91,104 @@ class TestRedisRpc(unittest.TestCase):
 
     @timeout_decorator.timeout(2)
     def test_void_function(self):
-        expose(void_function, channel='void_function')
+        pymq.expose(void_function, channel='void_function')
 
-        result = rpc('void_function')
+        result = pymq.rpc('void_function')
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('void_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertIsNone(response.result)
 
     @timeout_decorator.timeout(2)
     def test_void_function_error(self):
-        expose(void_function, channel='void_function')
+        pymq.expose(void_function, channel='void_function')
 
-        result = rpc('void_function', 1, 2, 3)
+        result = pymq.rpc('void_function', 1, 2, 3)
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('void_function', response.fn)
         self.assertTrue(response.error, msg='Expected error but result was: %s' % response.result)
         self.assertIn('void_function takes 0 positional arguments but 3 were given', response.result)
 
     @timeout_decorator.timeout(2)
     def test_simple_function(self):
-        expose(simple_remote_function, channel='simple_remote_function')
+        pymq.expose(simple_remote_function, channel='simple_remote_function')
 
-        result = rpc('simple_remote_function', 'unittest')
+        result = pymq.rpc('simple_remote_function', 'unittest')
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_remote_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertEqual('Hello unittest!', response.result)
 
     @timeout_decorator.timeout(2)
     def test_simple_multiple_param_function(self):
-        expose(simple_multiple_param_function, channel='simple_multiple_param_function')
+        pymq.expose(simple_multiple_param_function, channel='simple_multiple_param_function')
 
-        result = rpc('simple_multiple_param_function', 2, 3)
+        result = pymq.rpc('simple_multiple_param_function', 2, 3)
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_multiple_param_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertEqual(6, response.result)
 
     @timeout_decorator.timeout(2)
     def test_simple_multiple_param_default_function(self):
-        expose(simple_multiple_param_default_function, channel='simple_multiple_param_default_function')
+        pymq.expose(simple_multiple_param_default_function, channel='simple_multiple_param_default_function')
 
-        result = rpc('simple_multiple_param_default_function', 2)
+        result = pymq.rpc('simple_multiple_param_default_function', 2)
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_multiple_param_default_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertEqual(6, response.result)
 
     @timeout_decorator.timeout(2)
     def test_simple_list_param_function(self):
-        expose(simple_list_param_function, channel='simple_list_param_function')
+        pymq.expose(simple_list_param_function, channel='simple_list_param_function')
 
-        result = rpc('simple_list_param_function', [2, 3, 4])
+        result = pymq.rpc('simple_list_param_function', [2, 3, 4])
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_list_param_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertEqual(9, response.result)
 
     @timeout_decorator.timeout(2)
     def test_echo_command_function(self):
-        expose(echo_command_function, channel='echo_command_function')
+        pymq.expose(echo_command_function, channel='echo_command_function')
 
-        result = rpc('echo_command_function', EchoCommand('unittest'))
+        result = pymq.rpc('echo_command_function', EchoCommand('unittest'))
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('echo_command_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertEqual('Hello unittest!', response.result)
 
     @timeout_decorator.timeout(2)
     def test_echo_command_response_function(self):
-        expose(echo_command_response_function, channel='echo_command_response_function')
+        pymq.expose(echo_command_response_function, channel='echo_command_response_function')
 
-        result = rpc('echo_command_response_function', EchoCommand('unittest'))
+        result = pymq.rpc('echo_command_response_function', EchoCommand('unittest'))
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('echo_command_response_function', response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertIsInstance(response.result, EchoResponse)
@@ -211,13 +196,13 @@ class TestRedisRpc(unittest.TestCase):
 
     @timeout_decorator.timeout(5)
     def test_timeout(self):
-        expose(delaying_function, channel='delaying_function')
+        pymq.expose(delaying_function, channel='delaying_function')
 
-        result = rpc('delaying_function', timeout=1)
+        result = pymq.rpc('delaying_function', timeout=1)
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('delaying_function', response.fn)
         self.assertTrue(response.error, msg='Expected error but result was: %s' % response.result)
         self.assertIsInstance(response.result, TimeoutError)
@@ -225,24 +210,24 @@ class TestRedisRpc(unittest.TestCase):
     @timeout_decorator.timeout(2)
     def test_stateful_rpc(self):
         obj = RpcHolder()
-        expose(obj.echo)
+        pymq.expose(obj.echo)
 
-        result = rpc(RpcHolder.echo, EchoCommand('unittest'))
+        result = pymq.rpc(RpcHolder.echo, EchoCommand('unittest'))
         self.assertEqual(1, len(result))
 
-        response: RpcResponse = result[0]
-        self.assertIsInstance(response, RpcResponse)
-        self.assertEqual('test_rpc.RpcHolder.echo', response.fn)
+        response: pymq.RpcResponse = result[0]
+        self.assertIsInstance(response, pymq.RpcResponse)
+        self.assertTrue(response.fn.endswith('.RpcHolder.echo'), 'Unexpected function name %s' % response.fn)
         self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
         self.assertIsInstance(response.result, EchoResponse)
         self.assertEqual('Hello unittest!', response.result.result)
 
     @timeout_decorator.timeout(2)
     def test_remote_decorator(self):
-        @remote
+        @pymq.remote
         def remote_test_fn(param: str) -> str:
             return 'hello %s' % param
 
-        result = rpc(remote_test_fn, 'unittest')
+        result = pymq.rpc(remote_test_fn, 'unittest')
         self.assertEqual(1, len(result))
         self.assertEqual('hello unittest', result[0].result)

@@ -20,6 +20,7 @@ class EventWithPayload:
         self.payload = payload
 
 
+# noinspection PyUnresolvedReferences
 class AbstractQueueTest(abc.ABC):
 
     def test_queue_name(self):

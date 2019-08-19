@@ -1,9 +1,11 @@
 import threading
+import time
 import unittest
 
 import pymq
 from pymq.provider.simple import SimpleEventBus
 from tests.base.queue import AbstractQueueTest
+from tests.base.rpc import AbstractRpcTest
 
 
 class MyEvent:
@@ -49,15 +51,26 @@ class SimpleQueueTest(unittest.TestCase, AbstractQueueTest):
         pymq.shutdown()
 
 
+class SimpleRpcTest(unittest.TestCase, AbstractRpcTest):
+
+    def setUp(self) -> None:
+        super().setUp()
+        pymq.init(SimpleEventBus)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        pymq.shutdown()
+
+
 class TestEventBus(unittest.TestCase):
     invocations = list()
 
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        init_listeners()
         pymq.init(SimpleEventBus)
         StatefulListener()
+        init_listeners()
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -85,6 +98,7 @@ class TestEventBus(unittest.TestCase):
         pymq.remove_listener(listener)
         pymq.publish(MyEvent())
 
+        time.sleep(0.25)
         self.assertEqual(2, len(self.invocations))  # should be from the other two listeners
         self.assertFalse(called.is_set())
 

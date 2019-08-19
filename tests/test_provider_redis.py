@@ -5,6 +5,7 @@ from typing import NamedTuple
 import pymq
 from pymq.provider.redis import RedisConfig, RedisEventBus
 from tests.base.queue import AbstractQueueTest
+from tests.base.rpc import AbstractRpcTest
 from tests.testutils import RedisResource
 
 
@@ -24,18 +25,39 @@ class EventWithPayload:
         self.payload = payload
 
 
-class RedisQueueTest(unittest.TestCase, AbstractQueueTest):
+class RedisTestHelper:
+    redis: RedisResource = RedisResource()
+
+    def setUpEventbus(self) -> None:
+        self.redis.setUp()
+        pymq.init(RedisConfig(self.redis.rds))
+
+    def tearDownEventbus(self) -> None:
+        pymq.shutdown()
+        self.redis.tearDown()
+
+
+class RedisQueueTest(unittest.TestCase, RedisTestHelper, AbstractQueueTest):
     redis: RedisResource = RedisResource()
 
     def setUp(self) -> None:
         super().setUp()
-        self.redis.setUp()
-        pymq.init(RedisConfig(self.redis.rds))
+        super().setUpEventbus()
 
     def tearDown(self) -> None:
         super().tearDown()
-        pymq.shutdown()
-        self.redis.tearDown()
+        super().tearDownEventbus()
+
+
+class RedisRpcTest(unittest.TestCase, RedisTestHelper, AbstractRpcTest):
+
+    def setUp(self) -> None:
+        super().setUp()
+        super().setUpEventbus()
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        super().tearDownEventbus()
 
 
 class TestRedisEventbus(unittest.TestCase):
