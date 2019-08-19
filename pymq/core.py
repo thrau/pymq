@@ -56,6 +56,38 @@ class Topic(abc.ABC):
         raise NotImplementedError
 
 
+class EventBus(abc.ABC):
+
+    def run(self):
+        raise NotImplementedError
+
+    def close(self):
+        raise NotImplementedError
+
+    def publish(self, event, channel=None):
+        raise NotImplementedError
+
+    def subscribe(self, callback: Callable, channel, pattern=False):
+        raise NotImplementedError
+
+    def unsubscribe(self, callback: Callable, channel, pattern=False):
+        raise NotImplementedError
+
+    def queue(self, name: str) -> Queue:
+        raise NotImplementedError
+
+    def topic(self, name: str, pattern: bool = False):
+        raise NotImplementedError
+
+
+_subscribers: Dict[Tuple[str, bool], List[Callable]] = defaultdict(list)
+_remote_fns: Dict[str, Callable] = dict()
+
+_bus: Optional[EventBus] = None
+_runner: Optional[threading.Thread] = None
+_lock = threading.RLock()
+
+
 class _WrapperTopic(Topic):
     _name: str
     _is_pattern: bool
@@ -81,39 +113,6 @@ class _WrapperTopic(Topic):
 
     def subscribe(self, callback):
         return subscribe(callback, self.name, self.is_pattern)
-
-
-class EventBus(abc.ABC):
-
-    def publish(self, event, channel):
-        raise NotImplementedError
-
-    def subscribe(self, callback, channel, pattern):
-        raise NotImplementedError
-
-    def unsubscribe(self, callback, channel, pattern):
-        raise NotImplementedError
-
-    def run(self):
-        raise NotImplementedError
-
-    def close(self):
-        raise NotImplementedError
-
-    def queue(self, name: str) -> Queue:
-        raise NotImplementedError
-
-    @property
-    def _subscribers(self) -> Dict[Tuple[str, bool], List[Callable]]:
-        return _subscribers
-
-
-_subscribers: Dict[Tuple[str, bool], List[Callable]] = defaultdict(list)
-_remote_fns: Dict[str, Callable] = dict()
-
-_bus: Optional[EventBus] = None
-_runner: Optional[threading.Thread] = None
-_lock = threading.RLock()
 
 
 def topic(name, pattern=False):

@@ -3,11 +3,13 @@ import json
 import logging
 import threading
 from concurrent.futures.thread import ThreadPoolExecutor
+from typing import Callable
 
 import redis
 
-from pymq.core import EventBus, Queue, Empty
+from pymq.core import Queue, Empty
 from pymq.json import DeepDictDecoder, DeepDictEncoder
+from pymq.provider.base import AbstractEventBus
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +36,11 @@ class RedisQueue(Queue):
     Queue implementation over Redis. Uses very naive serialization using pickle and Base64.
     """
 
-    def __init__(self, rds: redis.Redis, name: str, qname: str = None) -> None:
+    def __init__(self, rds: redis.Redis, name: str, key: str = None) -> None:
         super().__init__()
-        self.rds = rds
+        self._rds = rds
         self._name = name
-        self.qname = qname or name
+        self._key = key or name
 
     @property
     def name(self):
@@ -46,9 +48,9 @@ class RedisQueue(Queue):
 
     def get(self, block=True, timeout=None):
         if block:
-            response = self.rds.brpop(self.qname, timeout)
+            response = self._rds.brpop(self._key, timeout)
         else:
-            response = self.rds.rpop(self.qname)
+            response = self._rds.rpop(self._key)
 
         if response is None:
             raise Empty
@@ -59,10 +61,10 @@ class RedisQueue(Queue):
         if block:
             raise NotImplementedError()
 
-        self.rds.lpush(self.qname, self._serialize(item))
+        self._rds.lpush(self._key, self._serialize(item))
 
     def qsize(self):
-        return self.rds.llen(self.qname)
+        return self._rds.llen(self._key)
 
     def _serialize(self, item):
         return json.dumps(item, cls=DeepDictEncoder)
@@ -71,7 +73,7 @@ class RedisQueue(Queue):
         return json.loads(item, cls=DeepDictDecoder)
 
 
-class RedisEventBus(EventBus):
+class RedisEventBus(AbstractEventBus):
 
     def __init__(self, namespace='global', dispatcher=None, rds: redis.Redis = None) -> None:
         super().__init__()
@@ -85,30 +87,9 @@ class RedisEventBus(EventBus):
         self._closed = False
         self._started = False
 
-    @property
-    def channel_prefix(self):
-        return '__eventbus:' + self.namespace + ":"
-
-    def subscribe(self, callback, channel, pattern):
-        logger.debug('adding to channel "%s" a callback %s', channel, callback)
-        self._subscribe(channel, pattern)
-
-    def unsubscribe(self, callback, channel, pattern):
-        callbacks = self._subscribers[(channel, pattern)]
-        if not callbacks:
-            logger.debug('no callbacks left in "%s, (pattern? %s)", unsubscribing', channel, pattern)
-            self._unsubscribe(channel, pattern)
-
-    def publish(self, event, channel: str):
-        data = json.dumps(event, cls=DeepDictEncoder)
-
-        redis_channel = self.channel_prefix + channel
-
-        logger.debug('publishing into "%s" data %s', redis_channel, data)
-        return self.rds.publish(redis_channel, data)
+        self.channel_prefix = '__eventbus:' + self.namespace + ":"
 
     def run(self):
-
         with self._lock:
             if self.dispatcher is None:
                 self.dispatcher = ThreadPoolExecutor(1)
@@ -179,7 +160,18 @@ class RedisEventBus(EventBus):
         self._submon.set()
         logger.debug('shutdown complete')
 
-    def _subscribe(self, channel, pattern: bool):
+    def queue(self, name: str) -> Queue:
+        return RedisQueue(self.rds, name, self.channel_prefix + name)
+
+    def _publish(self, event, channel: str):
+        data = json.dumps(event, cls=DeepDictEncoder)
+
+        redis_channel = self.channel_prefix + channel
+
+        logger.debug('publishing into "%s" data %s', redis_channel, data)
+        return self.rds.publish(redis_channel, data)
+
+    def _subscribe(self, _: Callable, channel: str, pattern: bool):
         if self.pubsub is None:
             return
 
@@ -195,9 +187,14 @@ class RedisEventBus(EventBus):
         if not self._submon.is_set():
             self._submon.set()
 
-    def _unsubscribe(self, channel, pattern: bool):
+    def _unsubscribe(self, _: Callable, channel: str, pattern: bool):
         if self.pubsub is None:
             return
+
+        if (channel, pattern) in self._subscribers:
+            return
+
+        logger.debug('no callbacks left in "%s, (pattern? %s)", unsubscribing', channel, pattern)
 
         redis_channel = self.channel_prefix + channel
 
@@ -219,9 +216,6 @@ class RedisEventBus(EventBus):
         if patterns:
             logger.debug('initializing pattern subscriptions %s', patterns)
             self.pubsub.psubscribe(*patterns)
-
-    def queue(self, name: str) -> Queue:
-        return RedisQueue(self.rds, name, self.channel_prefix + name)
 
     @staticmethod
     def _call_listener(fn, data):

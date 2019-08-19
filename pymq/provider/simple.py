@@ -1,13 +1,15 @@
 import logging
 from concurrent.futures.thread import ThreadPoolExecutor
 from queue import Queue as PythonQueue
+from typing import Callable, Optional
 
-from pymq.core import EventBus, Queue
+from pymq.core import Queue
+from pymq.provider.base import AbstractEventBus
 
 logger = logging.getLogger(__name__)
 
 
-class SimpleEventBus(EventBus):
+class SimpleEventBus(AbstractEventBus):
     """
     This class illustrates the abstraction of the eventbus module and the role of an EventBus implementation: it hides
     the transport and acts as dispatcher.
@@ -16,9 +18,26 @@ class SimpleEventBus(EventBus):
     def __init__(self) -> None:
         super().__init__()
         self.queues = dict()
-        self.dispatcher: ThreadPoolExecutor = None
+        self.dispatcher: Optional[ThreadPoolExecutor] = None
 
-    def publish(self, event, channel):
+    def run(self):
+        self.dispatcher = ThreadPoolExecutor(max_workers=1)
+
+    def close(self):
+        if self.dispatcher:
+            self.dispatcher.shutdown()
+
+    def queue(self, name: str) -> Queue:
+        # queues are never be garbage collected
+
+        if name not in self.queues:
+            q = PythonQueue()
+            q.name = name
+            self.queues[name] = q
+
+        return self.queues[name]
+
+    def _publish(self, event, channel: str):
         # TODO: pattern matching
         key = (channel, False)
 
@@ -33,22 +52,8 @@ class SimpleEventBus(EventBus):
 
         return subscribers
 
-    def queue(self, name: str) -> Queue:
-        if name not in self.queues:
-            q = PythonQueue()
-            q.name = name
-            self.queues[name] = q
-        return self.queues[name]
-
-    def subscribe(self, callback, channel, pattern):
+    def _subscribe(self, callback: Callable, channel: str, pattern: bool):
         pass
 
-    def unsubscribe(self, callback, channel, pattern):
+    def _unsubscribe(self, callback: Callable, channel: str, pattern: bool):
         pass
-
-    def run(self):
-        self.dispatcher = ThreadPoolExecutor(max_workers=4)
-
-    def close(self):
-        if self.dispatcher:
-            self.dispatcher.shutdown()
