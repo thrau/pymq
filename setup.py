@@ -13,7 +13,7 @@ with open("requirements.txt", "r") as fh:
 
 setuptools.setup(
     name="pymq",
-    version="0.1.0.dev2",
+    version="0.1.0.dev3",
     author="Thomas Rausch",
     author_email="thomas@rauschig.org",
     description="A simple message-oriented middleware library built for Python IPC across machine boundaries",
