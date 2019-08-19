@@ -52,7 +52,7 @@ class AbstractPubSubTest(abc.ABC):
         pymq.topic('some/topic').subscribe(topic_listener)
         pymq.topic('some/topic').publish('hello')
 
-        self.assertEquals('hello', invocations.get(timeout=2))
+        self.assertEqual('hello', invocations.get(timeout=2))
 
     def test_stateful_event_listener(self):
         listener = StatefulListener()
@@ -60,8 +60,8 @@ class AbstractPubSubTest(abc.ABC):
         pymq.publish('hello', channel='some/channel')
 
         title, e = listener.invocations.get(timeout=2)
-        self.assertEquals('stateful_event_listener', title)
-        self.assertEquals('hello', e)
+        self.assertEqual('stateful_event_listener', title)
+        self.assertEqual('hello', e)
 
         self.assertTrue(listener.invocations.empty())
 
@@ -72,7 +72,7 @@ class AbstractPubSubTest(abc.ABC):
         pymq.publish(event)
 
         title, e = listener.invocations.get(timeout=2)
-        self.assertEquals('typed_stateful_event_listener', title)
+        self.assertEqual('typed_stateful_event_listener', title)
         self.assertIsInstance(e, SimpleEvent)
 
         self.assertTrue(listener.invocations.empty())
