@@ -2,7 +2,7 @@ import queue
 import unittest
 
 import pymq
-from pymq.provider.redis import RedisConfig, RedisEventBus
+from pymq.provider.redis import RedisConfig
 from tests.base.pubsub import AbstractPubSubTest
 from tests.base.queue import AbstractQueueTest
 from tests.base.rpc import AbstractRpcTest
@@ -13,31 +13,36 @@ class MyRedisEvent:
     pass
 
 
-class RedisTestHelper:
+class RedisEventbusTestBase(unittest.TestCase):
     redis: RedisResource = RedisResource()
 
-    def setUpEventbus(self) -> RedisEventBus:
-        self.redis.setUp()
-        return pymq.init(RedisConfig(self.redis.rds))
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.redis.setUp()
 
-    def tearDownEventbus(self) -> None:
-        pymq.shutdown()
-        self.redis.tearDown()
-
-
-class RedisQueueTest(unittest.TestCase, RedisTestHelper, AbstractQueueTest):
-    redis: RedisResource = RedisResource()
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.redis.tearDown()
 
     def setUp(self) -> None:
-        super().setUp()
-        super().setUpEventbus()
+        pymq.init(RedisConfig(self.redis.rds))
 
     def tearDown(self) -> None:
-        super().tearDown()
-        super().tearDownEventbus()
+        pymq.shutdown()
+        self.redis.rds.flushall()
 
 
-class InitSubscribersTest(unittest.TestCase, RedisTestHelper):
+class RedisQueueTest(RedisEventbusTestBase, AbstractQueueTest):
+    pass
+
+
+class InitSubscribersTest(RedisEventbusTestBase):
+
+    def setUp(self) -> None:
+        pass
+
+    def tearDown(self) -> None:
+        pass
 
     def test_subscribe_before_init(self):
         invocations = queue.Queue()
@@ -50,12 +55,12 @@ class InitSubscribersTest(unittest.TestCase, RedisTestHelper):
         pymq.publish('hello', channel='early/subscription')  # doesn't do anything
 
         try:
-            self.setUpEventbus()
+            super().setUp()
             pymq.publish('hello', channel='early/subscription')
             self.assertEqual('hello', invocations.get(timeout=1))
             self.assertEqual(0, invocations.qsize())
         finally:
-            self.tearDownEventbus()
+            super().tearDown()
 
     def test_unsubscribe_before_init(self):
         invocations = queue.Queue()
@@ -67,23 +72,14 @@ class InitSubscribersTest(unittest.TestCase, RedisTestHelper):
         pymq.unsubscribe(handler, channel='early/subscription')
 
         try:
-            self.setUpEventbus()
+            super().setUp()
             pymq.publish('hello', channel='early/subscription')
-            self.assertRaises(queue.Empty, invocations.get, timeout=0.5)
+            self.assertRaises(queue.Empty, invocations.get, timeout=0.25)
         finally:
-            self.tearDownEventbus()
+            super().tearDown()
 
 
-class RedisPubSubTest(unittest.TestCase, RedisTestHelper, AbstractPubSubTest):
-    redis: RedisResource = RedisResource()
-
-    def setUp(self) -> None:
-        super().setUp()
-        super().setUpEventbus()
-
-    def tearDown(self) -> None:
-        super().tearDown()
-        super().tearDownEventbus()
+class RedisPubSubTest(RedisEventbusTestBase, AbstractPubSubTest):
 
     def test_add_listener_creates_subscription_correctly(self):
         def listener(event: MyRedisEvent):
@@ -117,16 +113,11 @@ class RedisPubSubTest(unittest.TestCase, RedisTestHelper, AbstractPubSubTest):
         self.assertEqual(0, len(self.redis.rds.pubsub_channels()))
 
 
-class RedisRpcTest(unittest.TestCase, RedisTestHelper, AbstractRpcTest):
+class RedisRpcTest(RedisEventbusTestBase, AbstractRpcTest):
+    pass
 
-    def setUp(self) -> None:
-        super().setUp()
-        super().setUpEventbus()
 
-    def tearDown(self) -> None:
-        super().tearDown()
-        super().tearDownEventbus()
-
+del RedisEventbusTestBase
 
 if __name__ == '__main__':
     unittest.main()

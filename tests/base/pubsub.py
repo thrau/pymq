@@ -87,7 +87,7 @@ class AbstractPubSubTest(abc.ABC):
         pymq.unsubscribe(listener)
         pymq.publish(SimpleEvent())
 
-        time.sleep(0.25)
+        time.sleep(0.2)
         self.assertFalse(called.is_set())
 
     def test_publish_on_exposed_listener_with_channel(self):

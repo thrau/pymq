@@ -35,7 +35,7 @@ def void_function() -> None:
 
 
 def delaying_function() -> None:
-    time.sleep(2)
+    time.sleep(1.5)
 
 
 def simple_remote_function(param) -> str:
