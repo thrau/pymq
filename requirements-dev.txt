@@ -1,2 +1,3 @@
 redislite>=5.0.124623
 timeout_decorator
+coverage
