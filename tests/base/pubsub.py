@@ -30,8 +30,8 @@ class StatefulListener:
         super().__init__()
         self.invocations = queue.Queue()
 
-        pymq.add_listener(self.typed_stateful_event_listener)
-        pymq.add_listener(self.stateful_event_listener, 'some/channel')
+        pymq.subscribe(self.typed_stateful_event_listener)
+        pymq.subscribe(self.stateful_event_listener, 'some/channel')
 
     def typed_stateful_event_listener(self, event: SimpleEvent):
         self.invocations.put(('typed_stateful_event_listener', event))
@@ -42,6 +42,17 @@ class StatefulListener:
 
 # noinspection PyUnresolvedReferences
 class AbstractPubSubTest(abc.ABC):
+
+    def test_topic(self):
+        invocations = queue.Queue()
+
+        def topic_listener(value):
+            invocations.put(value)
+
+        pymq.topic('some/topic').subscribe(topic_listener)
+        pymq.topic('some/topic').publish('hello')
+
+        self.assertEquals('hello', invocations.get(timeout=2))
 
     def test_stateful_event_listener(self):
         listener = StatefulListener()
@@ -72,8 +83,8 @@ class AbstractPubSubTest(abc.ABC):
         def listener(event: SimpleEvent):
             called.set()
 
-        pymq.add_listener(listener)
-        pymq.remove_listener(listener)
+        pymq.subscribe(listener)
+        pymq.unsubscribe(listener)
         pymq.publish(SimpleEvent())
 
         time.sleep(0.25)
@@ -82,7 +93,7 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_on_exposed_listener_with_channel(self):
         invocations = queue.Queue()
 
-        @pymq.listener('some/channel')
+        @pymq.subscriber('some/channel')
         def listener(event):
             invocations.put(event)
 
@@ -93,7 +104,7 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_on_exposed_listener_with_type(self):
         invocations = queue.Queue()
 
-        @pymq.listener
+        @pymq.subscriber
         def listener(event: SimpleEvent):
             invocations.put(event)
 
@@ -106,7 +117,7 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_on_same_channel(self):
         invocations = queue.Queue()
 
-        @pymq.listener('some/channel')
+        @pymq.subscriber('some/channel')
         def listener(event):
             invocations.put(event)
 
@@ -121,11 +132,11 @@ class AbstractPubSubTest(abc.ABC):
         invocations1 = queue.Queue()
         invocations2 = queue.Queue()
 
-        @pymq.listener('channel/1')
+        @pymq.subscriber('channel/1')
         def listener1(event):
             invocations1.put(event)
 
-        @pymq.listener('channel/2')
+        @pymq.subscriber('channel/2')
         def listener(event):
             invocations2.put(event)
 
@@ -144,7 +155,7 @@ class AbstractPubSubTest(abc.ABC):
             called.payload = event.payload
             called.set()
 
-        pymq.add_listener(listener)
+        pymq.subscribe(listener)
         pymq.publish(EventWithPayload(Payload('foobar', 42)))
 
         self.assertTrue(called.wait(2))
@@ -155,7 +166,7 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_pattern(self):
         invocations = queue.Queue()
 
-        @pymq.listener('channel/*', True)
+        @pymq.subscriber('channel/*', True)
         def listener1(event):
             invocations.put(event)
 

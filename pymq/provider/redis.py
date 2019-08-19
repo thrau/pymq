@@ -34,11 +34,11 @@ class RedisQueue(Queue):
     Queue implementation over Redis. Uses very naive serialization using pickle and Base64.
     """
 
-    def __init__(self, rds: redis.Redis, name: str, qname: str) -> None:
+    def __init__(self, rds: redis.Redis, name: str, qname: str = None) -> None:
         super().__init__()
         self.rds = rds
         self._name = name
-        self.qname = qname
+        self.qname = qname or name
 
     @property
     def name(self):
@@ -89,12 +89,12 @@ class RedisEventBus(EventBus):
     def channel_prefix(self):
         return '__eventbus:' + self.namespace + ":"
 
-    def add_listener(self, callback, channel, pattern):
+    def subscribe(self, callback, channel, pattern):
         logger.debug('adding to channel "%s" a callback %s', channel, callback)
         self._subscribe(channel, pattern)
 
-    def remove_listener(self, callback, channel, pattern):
-        callbacks = self.listeners[(channel, pattern)]
+    def unsubscribe(self, callback, channel, pattern):
+        callbacks = self._subscribers[(channel, pattern)]
         if not callbacks:
             logger.debug('no callbacks left in "%s, (pattern? %s)", unsubscribing', channel, pattern)
             self._unsubscribe(channel, pattern)
@@ -143,11 +143,11 @@ class RedisEventBus(EventBus):
 
                 key = key[0][len(self.channel_prefix):], key[1]
 
-                if key not in self.listeners:
+                if key not in self._subscribers:
                     logger.warning('inconsistent state: no listeners for %s', key)
                     continue
 
-                for fn in self.listeners[key]:
+                for fn in self._subscribers[key]:
                     logger.debug('dispatching %s to %s', message, fn)
 
                 self.dispatcher.submit(RedisEventBus._call_listener, fn, message['data'])
@@ -209,9 +209,9 @@ class RedisEventBus(EventBus):
                 self.pubsub.unsubscribe(redis_channel)
 
     def _init_subscriptions(self):
-        logger.debug('initializing subscriptions %s', self.listeners)
-        channels = [self.channel_prefix + channel for channel, pattern in self.listeners.keys() if not pattern]
-        patterns = [self.channel_prefix + channel for channel, pattern in self.listeners.keys() if pattern]
+        logger.debug('initializing subscriptions %s', self._subscribers)
+        channels = [self.channel_prefix + channel for channel, pattern in self._subscribers.keys() if not pattern]
+        patterns = [self.channel_prefix + channel for channel, pattern in self._subscribers.keys() if pattern]
 
         if channels:
             logger.debug('initializing channel subscriptions %s', channels)

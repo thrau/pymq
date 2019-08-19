@@ -1,7 +1,7 @@
 import atexit
 
-from pymq.core import init, shutdown, publish, add_listener, remove_listener, listener, Queue, Empty, \
-    queue, rpc, expose, remote, RpcRequest, RpcResponse
+from pymq.core import init, shutdown, publish, subscribe, unsubscribe, subscriber, Queue, Empty, \
+    queue, rpc, expose, remote, RpcRequest, RpcResponse, Topic, subscribe, topic
 
 name = "pymq"
 
@@ -10,10 +10,12 @@ __all__ = [
     'init',
     'shutdown',
     # pubsub
+    'Topic',
+    'topic',
     'publish',
-    'add_listener',
-    'remove_listener',
-    'listener',
+    'subscribe',
+    'unsubscribe',
+    'subscriber',
     # queue
     'Queue',
     'Empty',

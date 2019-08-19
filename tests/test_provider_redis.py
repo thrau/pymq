@@ -1,4 +1,3 @@
-import queue
 import unittest
 
 import pymq
@@ -55,7 +54,7 @@ class RedisPubSubTest(unittest.TestCase, RedisTestHelper, AbstractPubSubTest):
         self.assertEqual(0, len(self.redis.rds.pubsub_channels()),
                          'expected no subscribers, but got %s' % self.redis.rds.pubsub_channels())
 
-        pymq.add_listener(listener)
+        pymq.subscribe(listener)
 
         channels = self.redis.rds.pubsub_channels()
 
@@ -70,13 +69,13 @@ class RedisPubSubTest(unittest.TestCase, RedisTestHelper, AbstractPubSubTest):
         def listener2(event: MyRedisEvent):
             pass
 
-        pymq.add_listener(listener1)
-        pymq.add_listener(listener2)
+        pymq.subscribe(listener1)
+        pymq.subscribe(listener2)
 
         self.assertEqual(1, len(self.redis.rds.pubsub_channels()))
-        pymq.remove_listener(listener1)
+        pymq.unsubscribe(listener1)
         self.assertEqual(1, len(self.redis.rds.pubsub_channels()))
-        pymq.remove_listener(listener2)
+        pymq.unsubscribe(listener2)
         self.assertEqual(0, len(self.redis.rds.pubsub_channels()))
 
 

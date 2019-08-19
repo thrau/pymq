@@ -5,7 +5,7 @@ import threading
 import uuid
 from collections import defaultdict
 from queue import Empty
-from typing import Dict, Callable, Union, List, Any, Optional
+from typing import Dict, Callable, Union, List, Any, Optional, Tuple
 
 from pymq.typing import fullname, deep_from_dict, load_class
 
@@ -39,15 +39,59 @@ class Queue(abc.ABC):
         return self.get(block=False)
 
 
+class Topic(abc.ABC):
+
+    @property
+    def name(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def is_pattern(self) -> bool:
+        raise NotImplementedError
+
+    def publish(self, event) -> int:
+        raise NotImplementedError
+
+    def subscribe(self, callback):
+        raise NotImplementedError
+
+
+class _WrapperTopic(Topic):
+    _name: str
+    _is_pattern: bool
+
+    def __init__(self, name, is_pattern=False) -> None:
+        super().__init__()
+        self._name = name
+        self._is_pattern = is_pattern
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def is_pattern(self) -> bool:
+        return self._is_pattern
+
+    def publish(self, event) -> int:
+        if self.is_pattern:
+            raise ValueError('Cannot publish to pattern topic')
+        else:
+            return publish(event, self.name)
+
+    def subscribe(self, callback):
+        return subscribe(callback, self.name, self.is_pattern)
+
+
 class EventBus(abc.ABC):
 
     def publish(self, event, channel):
         raise NotImplementedError
 
-    def add_listener(self, callback, channel, pattern):
+    def subscribe(self, callback, channel, pattern):
         raise NotImplementedError
 
-    def remove_listener(self, callback, channel, pattern):
+    def unsubscribe(self, callback, channel, pattern):
         raise NotImplementedError
 
     def run(self):
@@ -60,16 +104,20 @@ class EventBus(abc.ABC):
         raise NotImplementedError
 
     @property
-    def listeners(self):
-        return _listeners
+    def _subscribers(self) -> Dict[Tuple[str, bool], List[Callable]]:
+        return _subscribers
 
 
-_listeners: dict = defaultdict(list)
+_subscribers: Dict[Tuple[str, bool], List[Callable]] = defaultdict(list)
 _remote_fns: Dict[str, Callable] = dict()
 
 _bus: Optional[EventBus] = None
 _runner: Optional[threading.Thread] = None
 _lock = threading.RLock()
+
+
+def topic(name, pattern=False):
+    return _WrapperTopic(name, pattern)
 
 
 def inspect_listener(fn) -> str:
@@ -97,7 +145,7 @@ def inspect_listener(fn) -> str:
         return fullname(event_type)
 
 
-def add_listener(callback, channel=None, pattern=False):
+def subscribe(callback, channel=None, pattern=False):
     with _lock:
         if channel is None:
             channel = inspect_listener(callback)
@@ -105,33 +153,33 @@ def add_listener(callback, channel=None, pattern=False):
 
         logger.debug('adding to channel "%s" a callback %s', channel, callback)
 
-        _listeners[(channel, pattern)].append(callback)
+        _subscribers[(channel, pattern)].append(callback)
 
         if _bus is not None:
-            _bus.add_listener(callback, channel, pattern)
+            _bus.subscribe(callback, channel, pattern)
 
 
-def remove_listener(callback, channel=None, pattern=False):
+def unsubscribe(callback, channel=None, pattern=False):
     with _lock:
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
 
-        callbacks = _listeners.get((channel, pattern))
+        callbacks = _subscribers.get((channel, pattern))
         if callback:
             callbacks.remove(callback)
 
         if _bus is not None:
-            _bus.remove_listener(callback, channel, pattern)
+            _bus.unsubscribe(callback, channel, pattern)
 
 
-def listener(*args, **kwargs):
+def subscriber(*args, **kwargs):
     if callable(args[0]):
-        add_listener(args[0], *args[1:], **kwargs)
+        subscribe(args[0], *args[1:], **kwargs)
         return args[0]
 
     def _decorator(fn):
-        add_listener(fn, *args, **kwargs)
+        subscribe(fn, *args, **kwargs)
         return fn
 
     return _decorator
@@ -189,7 +237,7 @@ def shutdown():
         logger.debug('global event bus stopped')
         _runner = None
         _bus = None
-        _listeners.clear()
+        _subscribers.clear()
         _remote_fns.clear()
 
 
@@ -309,8 +357,6 @@ def rpc(fn: Union[str, Callable], *args, timeout=None) -> List[RpcResponse]:
 
 def expose(fn, channel=None):
     with _lock:
-        pattern = False  # can't have patterns for RPC calls
-
         if channel is None:
             channel = rpc_channel(fn)
 
@@ -321,13 +367,13 @@ def expose(fn, channel=None):
 
         callback = _rpc_wrapper
 
-        _listeners[(channel, pattern)].append(callback)
+        _subscribers[(channel, False)].append(callback)
         _remote_fns[channel] = fn
 
         logger.debug('bus is %s', _bus)
 
         if _bus is not None:
-            _bus.add_listener(callback, channel, pattern)
+            _bus.subscribe(callback, channel, False)
 
 
 def remote(*args, **kwargs):

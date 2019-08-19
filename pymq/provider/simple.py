@@ -23,7 +23,7 @@ class SimpleEventBus(EventBus):
         key = (channel, False)
 
         subscribers = 0
-        for fn in self.listeners[key]:
+        for fn in self._subscribers[key]:
             logger.debug('dispatching %s to %s', event, fn)
             try:
                 subscribers += 1
@@ -40,10 +40,10 @@ class SimpleEventBus(EventBus):
             self.queues[name] = q
         return self.queues[name]
 
-    def add_listener(self, callback, channel, pattern):
+    def subscribe(self, callback, channel, pattern):
         pass
 
-    def remove_listener(self, callback, channel, pattern):
+    def unsubscribe(self, callback, channel, pattern):
         pass
 
     def run(self):

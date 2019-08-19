@@ -40,7 +40,7 @@ class MyEvent:
     pass
 
 # subscribe code
-@pymq.listener
+@pymq.subscriber
 def on_event(event: MyEvent):
     print('event received')
 
@@ -68,7 +68,7 @@ Server code (suppose this is the module)
 import pymq
 
 @pymq.remote('product_remote')
-def product(a: int, b: int) -> int: # eventbus relies on type hints for marshalling
+def product(a: int, b: int) -> int: # pymq relies on type hints for marshalling
     return a * b
 ```
 
@@ -76,7 +76,7 @@ Client code
 ```python
 import pymq
 
-result: 'List[eventbus.RpcResponse]' = pymq.rpc('product_remote', 2, 4)
+result: 'List[pymq.RpcResponse]' = pymq.rpc('product_remote', 2, 4)
 print(result[0].result) # 8
 ```
 
