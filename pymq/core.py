@@ -114,10 +114,6 @@ class _WrapperTopic(Topic):
         return subscribe(callback, self.name, self.is_pattern)
 
 
-def topic(name, pattern=False):
-    return _WrapperTopic(name, pattern)
-
-
 def subscribe(callback, channel=None, pattern=False):
     with _lock:
         if _bus:
@@ -175,6 +171,13 @@ def queue(name) -> Queue:
         raise ValueError('Bus not set yet')
 
     return _bus.queue(name)
+
+
+def topic(name, pattern=False):
+    if _bus is None:
+        return _WrapperTopic(name, pattern)
+
+    return _bus.topic(name, pattern)
 
 
 def start():
