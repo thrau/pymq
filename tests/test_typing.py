@@ -3,7 +3,7 @@ import unittest
 from typing import Dict, List, Tuple, Set, Any
 
 from pymq.json import DeepDictEncoder, DeepDictDecoder
-from pymq.typing import deep_to_dict, deep_from_dict
+from pymq.typing import deep_to_dict, deep_from_dict, fullname
 
 
 class SimpleNested:
@@ -170,11 +170,13 @@ class TestMarhsalling(unittest.TestCase):
 
     def test_encoding(self):
         doc = json.dumps(self.root, cls=DeepDictEncoder)
-        expected = '{"some_int": 42, "some_str": "jaffa kree", "simple_dict": {"a": 1, "b": 2}, "complex_dict": {"1": {"name": "a", "value": 1}, "2": {"name": "b", "value": 2}}, "complex_list": [{"nested_list": [{"name": "a", "value": 1}, {"name": "b", "value": 2}], "nested_tuple": [1, {"name": "a", "value": 1}]}, {"nested_list": [{"name": "b", "value": 2}, {"name": "c", "value": 3}], "nested_tuple": [2, {"name": "b", "value": 2}]}], "__type": "test_typing.RootClass"}'
+        expected = '{"some_int": 42, "some_str": "jaffa kree", "simple_dict": {"a": 1, "b": 2}, "complex_dict": {"1": {"name": "a", "value": 1}, "2": {"name": "b", "value": 2}}, "complex_list": [{"nested_list": [{"name": "a", "value": 1}, {"name": "b", "value": 2}], "nested_tuple": [1, {"name": "a", "value": 1}]}, {"nested_list": [{"name": "b", "value": 2}, {"name": "c", "value": 3}], "nested_tuple": [2, {"name": "b", "value": 2}]}], "__type": "%s"}' % fullname(
+            RootClass)
         self.assertEqual(expected, doc)
 
     def test_decoding(self):
-        doc = '{"some_int": 42, "some_str": "jaffa kree", "simple_dict": {"a": 1, "b": 2}, "complex_dict": {"1": {"name": "a", "value": 1}, "2": {"name": "b", "value": 2}}, "complex_list": [{"nested_list": [{"name": "a", "value": 1}, {"name": "b", "value": 2}], "nested_tuple": [1, {"name": "a", "value": 1}]}, {"nested_list": [{"name": "b", "value": 2}, {"name": "c", "value": 3}], "nested_tuple": [2, {"name": "b", "value": 2}]}], "__type": "test_typing.RootClass"}'
+        doc = '{"some_int": 42, "some_str": "jaffa kree", "simple_dict": {"a": 1, "b": 2}, "complex_dict": {"1": {"name": "a", "value": 1}, "2": {"name": "b", "value": 2}}, "complex_list": [{"nested_list": [{"name": "a", "value": 1}, {"name": "b", "value": 2}], "nested_tuple": [1, {"name": "a", "value": 1}]}, {"nested_list": [{"name": "b", "value": 2}, {"name": "c", "value": 3}], "nested_tuple": [2, {"name": "b", "value": 2}]}], "__type": "%s"}' % fullname(
+            RootClass)
         root = json.loads(doc, cls=ModifiedDeepDictDecoder)
 
         self.assertEqualsRoot(root)

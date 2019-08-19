@@ -1,4 +1,1 @@
-redis==3.2.1
-redislite==5.0.124623
-timeout_decorator
-
+redis>=3.2.1

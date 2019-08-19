@@ -1,23 +1,35 @@
-.PHONY: dist-clean
-
 VENV_BIN = python3.7 -m venv
+VENV_DIR ?= .venv
 
-venv: .venv/bin/activate
+VENV_ACTIVATE = . $(VENV_DIR)/bin/activate
 
-.venv/bin/activate: requirements.txt
+
+venv: $(VENV_DIR)/bin/activate
+
+$(VENV_DIR)/bin/activate: requirements.txt requirements-dev.txt
 	test -d .venv || $(VENV_BIN) .venv
-	. .venv/bin/activate; pip install -Ur requirements.txt
-	touch .venv/bin/activate
+	$(VENV_ACTIVATE); pip install -Ur requirements.txt
+	$(VENV_ACTIVATE); pip install -Ur requirements-dev.txt
+	touch $(VENV_DIR)/bin/activate
+
+clean:
+	rm -rf build/
+	rm -rf .eggs/
+	rm -rf *.egg-info/
+
+build: venv
+	$(VENV_ACTIVATE); python setup.py build
 
 test: venv
-	. .venv/bin/activate; python -m unittest discover -s tests/ -v
+	$(VENV_ACTIVATE); python setup.py test
 
 dist: venv
-	. .venv/bin/activate; python setup.py sdist bdist_wheel
+	$(VENV_ACTIVATE); python setup.py sdist bdist_wheel
 
 install: venv
-	. .venv/bin/activate; python setup.py install
+	$(VENV_ACTIVATE); python setup.py install
 
-dist-clean:
+clean-dist: clean
 	rm -rf dist/
-	rm -rf *.egg-info/
+
+.PHONY: clean clean-dist
