@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures.thread import ThreadPoolExecutor
 from queue import Queue as PythonQueue
 
 from pymq.core import EventBus, Queue
@@ -15,6 +16,7 @@ class SimpleEventBus(EventBus):
     def __init__(self) -> None:
         super().__init__()
         self.queues = dict()
+        self.dispatcher: ThreadPoolExecutor = None
 
     def publish(self, event, channel):
         # TODO: pattern matching
@@ -25,7 +27,7 @@ class SimpleEventBus(EventBus):
             logger.debug('dispatching %s to %s', event, fn)
             try:
                 subscribers += 1
-                fn(event)
+                self.dispatcher.submit(fn, event)
             except Exception as e:
                 logger.exception('error while executing callback', e)
 
@@ -45,7 +47,8 @@ class SimpleEventBus(EventBus):
         pass
 
     def run(self):
-        pass
+        self.dispatcher = ThreadPoolExecutor(max_workers=4)
 
     def close(self):
-        pass
+        if self.dispatcher:
+            self.dispatcher.shutdown()
