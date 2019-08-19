@@ -99,7 +99,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('void_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertIsNone(response.result)
 
     @timeout_decorator.timeout(2)
@@ -125,7 +125,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_remote_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertEqual('Hello unittest!', response.result)
 
     @timeout_decorator.timeout(2)
@@ -138,7 +138,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_multiple_param_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertEqual(6, response.result)
 
     @timeout_decorator.timeout(2)
@@ -151,7 +151,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_multiple_param_default_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertEqual(6, response.result)
 
     @timeout_decorator.timeout(2)
@@ -164,7 +164,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('simple_list_param_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertEqual(9, response.result)
 
     @timeout_decorator.timeout(2)
@@ -177,7 +177,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('echo_command_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertEqual('Hello unittest!', response.result)
 
     @timeout_decorator.timeout(2)
@@ -190,7 +190,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertEqual('echo_command_response_function', response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertIsInstance(response.result, EchoResponse)
         self.assertEqual('Hello unittest!', response.result.result)
 
@@ -218,7 +218,7 @@ class AbstractRpcTest(abc.ABC):
         response: pymq.RpcResponse = result[0]
         self.assertIsInstance(response, pymq.RpcResponse)
         self.assertTrue(response.fn.endswith('.RpcHolder.echo'), 'Unexpected function name %s' % response.fn)
-        self.assertFalse(response.error, msg='Did not expected error: %s' % response.result)
+        self.assertFalse(response.error, msg='Unexpected error: %s' % response.result)
         self.assertIsInstance(response.result, EchoResponse)
         self.assertEqual('Hello unittest!', response.result.result)
 
