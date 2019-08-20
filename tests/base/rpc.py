@@ -63,6 +63,10 @@ def echo_command_response_function(cmd: EchoCommand) -> EchoResponse:
     return EchoResponse('Hello %s!' % cmd.param)
 
 
+def error_function():
+    raise ValueError('oh noes')
+
+
 class RpcHolder:
 
     def __init__(self, prefix='Hello') -> None:
@@ -177,3 +181,14 @@ class AbstractRpcTest(abc.ABC):
 
         stub = pymq.stub(remote_test_fn)
         self.assertEqual('hello unittest', stub('unittest'))
+
+    @timeout_decorator.timeout(2)
+    def test_error_function(self):
+        pymq.expose(error_function, channel='error_function')
+
+        stub = pymq.stub('error_function')
+        try:
+            result = stub()
+            self.fail('Should have thrown exception, but received result %s' % result)
+        except RemoteInvocationError as e:
+            self.assertIn('ValueError', str(e))
