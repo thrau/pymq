@@ -4,7 +4,8 @@ PyMQ is a simple message-oriented middleware library for implementing Python IPC
 enables different styles of remoting via Pub/Sub, Queues, and synchronous RPC.
 
 With PyMQ, developers can integrate Python applications running on different machines in a loosely coupled way over
-existing transport mechanisms. PyMQ currently provides a Redis backend.
+existing transport mechanisms. PyMQ currently provides a Redis backend, and an in-memory backend for testing. The API is
+extensible and other transports can be plugged in.
 
 Using PyMQ
 ----------
