@@ -19,7 +19,7 @@ setuptools.setup(
     description="A simple message-oriented middleware library built for Python IPC across machine boundaries",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://git.dsg.tuwien.ac.at/mc2/pymq",
+    url="https://github.com/thrau/pymq",
     packages=setuptools.find_packages(),
     setup_requires=['wheel'],
     test_suite="tests",
