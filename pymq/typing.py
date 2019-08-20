@@ -1,4 +1,5 @@
 import inspect
+import types
 from pydoc import locate
 from typing import Any, _GenericAlias as GenericAlias, get_type_hints
 
@@ -33,6 +34,9 @@ def fullname(o):
     # Alas, the module name is explicitly excluded from __qualname__
     # in Python 3.
 
+    if isinstance(o, (types.MethodType, types.FunctionType)):
+        return o.__module__ + '.' + o.__qualname__
+
     if isinstance(o, type):
         o = o
     else:
@@ -51,6 +55,9 @@ def deep_from_dict(doc, cls):
 
     if cls == Any:
         return doc
+
+    if cls == type:
+        raise TypeError('Deserializing types is not safe')
 
     if isinstance(cls, GenericAlias):
         container_class = cls.__origin__
@@ -73,6 +80,12 @@ def deep_from_dict(doc, cls):
 
         raise TypeError('Unknown generic class %s' % cls)
 
+    if issubclass(cls, Exception):
+        if isinstance(doc, (list, tuple)):
+            return cls(*doc)
+        else:
+            return cls(doc)
+
     if isinstance(doc, (bool, int, float, str, bytes, bytearray)):
         if type(doc) != cls:
             return cls(doc)
@@ -85,7 +98,7 @@ def deep_from_dict(doc, cls):
     spec = get_type_hints(cls)
     result = dict()
 
-    if isinstance(doc, list):
+    if isinstance(doc, (list, tuple)):
         # named tuples for example may be in a list
         i = 0
         for name, target_type in spec.items():
@@ -108,19 +121,25 @@ def deep_to_dict(obj):
     if isinstance(obj, (bool, int, float, str, bytes, bytearray)):
         return obj
 
-    if hasattr(obj, '__dict__'):
-        return deep_to_dict(obj.__dict__)
+    if isinstance(obj, tuple):
+        return tuple([deep_to_dict(a) for a in obj])
 
     if isinstance(obj, list):
         return [deep_to_dict(a) for a in obj]
 
+    if isinstance(obj, dict):
+        return {k: deep_to_dict(v) for k, v in obj.items()}
+
     if isinstance(obj, set):
         return {deep_to_dict(a) for a in obj}
 
-    if isinstance(obj, tuple):
-        return tuple([deep_to_dict(a) for a in obj])
+    if isinstance(obj, (type, types.MethodType, types.FunctionType)):
+        return fullname(obj)
 
-    if isinstance(obj, dict):
-        return {k: deep_to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, Exception):
+        return deep_to_dict(obj.args)
+
+    if hasattr(obj, '__dict__'):
+        return deep_to_dict(obj.__dict__)
 
     raise TypeError('Unhandled type %s' % type(obj))

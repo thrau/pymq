@@ -193,6 +193,27 @@ class TestMarhsalling(unittest.TestCase):
         self.assertEqual('b', root.complex_list[1].nested_list[0].name)
         self.assertEqual('c', root.complex_list[1].nested_list[1].name)
 
+    def test_normalize_type(self):
+        self.assertEqual('unittest.case.TestCase', deep_to_dict(unittest.TestCase))
+        self.assertEqual('unittest.case.TestCase.debug', deep_to_dict(unittest.TestCase.debug))
+        self.assertEqual('TimeoutError', deep_to_dict(TimeoutError))
+
+    def test_cast_type(self):
+        self.assertRaises(TypeError, deep_from_dict, 'unittest.case.TestCase', type)
+
+    def test_normalize_exception(self):
+        self.assertEqual(('failed',), deep_to_dict(TimeoutError('failed')))
+        self.assertEqual(('failed',), deep_to_dict(TimeoutError('failed')))
+
+    def test_cast_exception(self):
+        err = deep_from_dict(('failed',), TimeoutError)
+        self.assertIsInstance(err, TimeoutError)
+        self.assertEqual(('failed',), err.args)
+
+        err = deep_from_dict('failed', TimeoutError)
+        self.assertIsInstance(err, TimeoutError)
+        self.assertEqual(('failed',), err.args)
+
 
 if __name__ == '__main__':
     unittest.main()

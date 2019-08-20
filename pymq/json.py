@@ -1,6 +1,9 @@
 import json
 
-from pymq.typing import deep_to_dict, deep_from_dict, load_class
+from pymq.typing import deep_to_dict, deep_from_dict, load_class, fullname
+
+dumps = json.dumps
+loads = json.loads
 
 
 class DeepDictEncoder(json.JSONEncoder):
@@ -12,12 +15,12 @@ class DeepDictEncoder(json.JSONEncoder):
             return super().encode(o)
 
         if isinstance(d, dict):
-            d['__type'] = str(o.__class__)[8:-2]
+            d['__type'] = fullname(o)
             return super().encode(d)
         else:
             return super().encode({
                 '__obj': d,
-                '__type': str(o.__class__)[8:-2]
+                '__type': fullname(o)
             })
 
 
