@@ -23,6 +23,9 @@ build: venv
 test: venv
 	$(VENV_ACTIVATE); python setup.py test
 
+pytest: venv
+	$(VENV_ACTIVATE); pytest --cov pymq/
+
 dist: venv
 	$(VENV_ACTIVATE); python setup.py sdist bdist_wheel
 
