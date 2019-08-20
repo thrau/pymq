@@ -1,5 +1,9 @@
 PyMQ
 ====
+
+[![Build Status](https://travis-ci.org/thrau/pymq.svg?branch=master)](https://travis-ci.org/thrau/pymq)
+[![Coverage Status](https://coveralls.io/repos/github/thrau/pymq/badge.svg?branch=master)](https://coveralls.io/github/thrau/pymq?branch=master)
+
 PyMQ is a simple message-oriented middleware library for implementing Python IPC across machine boundaries. The API
 enables different styles of remoting via Pub/Sub, Queues, and synchronous RPC.
 
