@@ -1,8 +1,12 @@
 import queue
+import threading
+import time
 import unittest
 
+from timeout_decorator import timeout_decorator
+
 import pymq
-from pymq.provider.redis import RedisConfig
+from pymq.provider.redis import RedisConfig, RedisEventBus
 from tests.base.pubsub import AbstractPubSubTest
 from tests.base.queue import AbstractQueueTest
 from tests.base.rpc import AbstractRpcTest
@@ -15,6 +19,7 @@ class MyRedisEvent:
 
 class RedisEventbusTestBase(unittest.TestCase):
     redis: RedisResource = RedisResource()
+    bus: RedisEventBus
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -25,7 +30,7 @@ class RedisEventbusTestBase(unittest.TestCase):
         cls.redis.tearDown()
 
     def setUp(self) -> None:
-        pymq.init(RedisConfig(self.redis.rds))
+        self.bus = pymq.init(RedisConfig(self.redis.rds))
 
     def tearDown(self) -> None:
         pymq.shutdown()
@@ -114,7 +119,33 @@ class RedisPubSubTest(RedisEventbusTestBase, AbstractPubSubTest):
 
 
 class RedisRpcTest(RedisEventbusTestBase, AbstractRpcTest):
-    pass
+
+    @timeout_decorator.timeout(5)
+    def test_channel_expire(self):
+        self.bus.rpc_channel_expire = 1
+        called = threading.Event()
+
+        def remotefn():
+            time.sleep(1.25)
+            called.set()
+
+        pymq.expose(remotefn)
+
+        stub = pymq.stub(remotefn, timeout=1)
+        stub.rpc()
+        keys = self.redis.rds.keys('*rpc*')
+        self.assertEqual(0, len(keys), 'Expected no rpc results yet %s' % keys)
+
+        called.wait()
+
+        keys = self.redis.rds.keys('*rpc*')
+        self.assertEqual(1, len(keys))
+
+        # wait for key to expire
+        time.sleep(1.25)
+
+        keys = self.redis.rds.keys('*rpc*')
+        self.assertEqual(0, len(keys), 'key did not expire')
 
 
 del RedisEventbusTestBase

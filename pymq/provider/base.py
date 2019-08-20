@@ -166,6 +166,9 @@ class DefaultSkeletonMethod:
             logger.exception('Exception while invoking %s', request)
             response = RpcResponse(request.fn, e, fullname(e), error=True)
 
+        self._queue_response(request, response)
+
+    def _queue_response(self, request, response):
         self._bus.queue(request.response_channel).put(response)
 
     def _invoke(self, request: RpcRequest) -> Any:

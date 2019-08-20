@@ -7,9 +7,10 @@ from typing import Callable
 
 import redis
 
+from pymq import RpcRequest
 from pymq.core import Queue, Empty
 from pymq.json import DeepDictDecoder, DeepDictEncoder
-from pymq.provider.base import AbstractEventBus
+from pymq.provider.base import AbstractEventBus, DefaultSkeletonMethod
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,19 @@ class RedisQueue(Queue):
         return json.loads(item, cls=DeepDictDecoder)
 
 
+class RedisSkeletonMethod(DefaultSkeletonMethod):
+    """
+    This special skeleton makes sure the result channels expire after a given time as to not create garbage.
+    """
+
+    # noinspection PyUnresolvedReferences
+    def _queue_response(self, request, response):
+        super()._queue_response(request, response)
+        self._bus.rds.expire(self._bus.channel_prefix + request.response_channel, self._bus.rpc_channel_expire)
+
+
 class RedisEventBus(AbstractEventBus):
+    rpc_channel_expire = 300  # 5 minute default
 
     def __init__(self, namespace='global', dispatcher=None, rds: redis.Redis = None) -> None:
         super().__init__()
@@ -250,3 +263,6 @@ class RedisEventBus(AbstractEventBus):
             fn(event)
         except Exception as e:
             logger.exception(e)
+
+    def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
+        return RedisSkeletonMethod(self, channel, fn)
