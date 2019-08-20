@@ -1,7 +1,28 @@
 import inspect
 import types
+import typing
 from pydoc import locate
-from typing import Any, _GenericAlias as GenericAlias, get_type_hints
+
+if hasattr(typing, '_GenericAlias'):
+    def _is_generic(cls):
+        return isinstance(cls, typing._GenericAlias)
+
+else:
+    if hasattr(typing, '_Union'):
+        def _is_generic(cls):
+            return isinstance(cls, typing.GenericMeta)
+
+    else:
+        def _is_generic(cls):
+            raise RuntimeError('Need python>=3.6')
+
+
+def is_generic(cls):
+    """
+    Detects any kind of generic, for example `List` or `List[int]`. This includes "special" types like
+    Union and Tuple - anything that's subscriptable, basically.
+    """
+    return _is_generic(cls)
 
 
 def load_class(classname):
@@ -56,13 +77,13 @@ def deep_from_dict(doc, cls):
     if type(doc) == cls:
         return doc
 
-    if cls == Any:
+    if cls == typing.Any:
         return doc
 
     if cls == type:
         raise TypeError('Deserializing types is not safe')
 
-    if isinstance(cls, GenericAlias):
+    if is_generic(cls):
         container_class = cls.__origin__
 
         if issubclass(container_class, list):
@@ -98,7 +119,7 @@ def deep_from_dict(doc, cls):
         return cls(doc)
 
     # otherwise we treat it as an object
-    spec = get_type_hints(cls)
+    spec = typing.get_type_hints(cls)
     result = dict()
 
     if isinstance(doc, (list, tuple)):
