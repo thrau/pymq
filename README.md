@@ -1,6 +1,8 @@
 PyMQ
 ====
 
+[![PyPI Version](https://badge.fury.io/py/pymq.svg)](https://badge.fury.io/py/pymq)
+[![PyPI License](https://img.shields.io/pypi/l/pymq.svg)](https://img.shields.io/pypi/l/pymq.svg)
 [![Build Status](https://travis-ci.org/thrau/pymq.svg?branch=master)](https://travis-ci.org/thrau/pymq)
 [![Coverage Status](https://coveralls.io/repos/github/thrau/pymq/badge.svg?branch=master)](https://coveralls.io/github/thrau/pymq?branch=master)
 
