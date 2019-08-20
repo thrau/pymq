@@ -62,7 +62,7 @@ print(queue.get()) # outputs 'obj'
 
 ### RPC
 
-Server code (suppose this is the module)
+Server code
 
 ```python
 import pymq
@@ -76,26 +76,35 @@ Client code
 ```python
 import pymq
 
-result: 'List[pymq.RpcResponse]' = pymq.rpc('product_remote', 2, 4)
-print(result[0].result) # 8
+product = pymq.stub('product_remote')
+product(2, 4) # 8
 ```
 
-With a shared code-base methods can also be exposed and called by passing the callable. For example,
+With a shared code-base, methods can also be exposed and called by passing the callable. For example,
 ```python
 import pymq
 
 # common code
 class Remote:
-    def remote_fn(self) -> None:
-        pass
+    def echo(self, param) -> None:
+        return 'echo: ' + param
 
 # server
 obj = Remote()
-pymq.expose(obj.remote_fn)
+pymq.expose(obj.echo)
 
 # client
-pymq.rpc(Remote.remote_fn)
+echo = pymq.stub(Remote.echo)
+echo('pymq') # "echo: pymq"
+```
 
+If there are multiple providers of the same object, then a stub can be initialized with `multi=True` to get a list of
+results. It may be useful to use a timeout in this case.
+
+```python
+remote = pymq.stub('remote_method', multi=True, timeout=2)
+
+result = remote() # result will be a list containing the results of all invocations of available remote objects
 ```
 
 Known Limitations

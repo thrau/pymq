@@ -1,12 +1,8 @@
 import abc
-import inspect
 import logging
 import threading
-import uuid
 from queue import Empty
-from typing import Dict, Callable, Union, List, Any, Optional, Tuple
-
-from pymq.typing import deep_from_dict, load_class
+from typing import Callable, Union, List, Any, Optional, Tuple, NamedTuple
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +51,29 @@ class Topic(abc.ABC):
         raise NotImplementedError
 
 
+class RpcRequest(NamedTuple):
+    fn: str
+    response_channel: str
+    args: tuple = None
+    kwargs: dict = None
+
+
+class RpcResponse(NamedTuple):
+    fn: str
+    result: Any
+    result_type: str = None
+    error: bool = False
+
+
+class StubMethod:
+
+    def __call__(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def rpc(self, *args, **kwargs) -> Union[RpcResponse, List[RpcResponse]]:
+        raise NotImplementedError
+
+
 class EventBus(abc.ABC):
 
     def run(self):
@@ -78,9 +97,15 @@ class EventBus(abc.ABC):
     def topic(self, name: str, pattern: bool = False):
         raise NotImplementedError
 
+    def stub(self, fn, timeout=None, multi=False) -> StubMethod:
+        raise NotImplementedError
+
+    def expose(self, fn, channel=None):
+        raise NotImplementedError
+
 
 _uninitialized_subscribers: List[Tuple[Callable, str, bool]] = list()
-_remote_fns: Dict[str, Callable] = dict()
+_uninitialized_remote_fns: List[Tuple[Callable, str]] = list()
 
 _bus: Optional[EventBus] = None
 _runner: Optional[threading.Thread] = None
@@ -154,6 +179,11 @@ def init(factory, start_bus=True):
 
         _uninitialized_subscribers.clear()
 
+        for (callback, channel) in _uninitialized_remote_fns:
+            _bus.expose(callback, channel)
+
+        _uninitialized_remote_fns.clear()
+
         return _bus
 
 
@@ -178,6 +208,22 @@ def topic(name, pattern=False):
         return _WrapperTopic(name, pattern)
 
     return _bus.topic(name, pattern)
+
+
+def stub(fn, timeout=None, multi=False) -> StubMethod:
+    if _bus is None:
+        logger.error('Event bus was not initialized, cannot get stub. Please run pymq.init')
+        raise ValueError('Bus not set yet')
+
+    return _bus.stub(fn, timeout, multi)
+
+
+def expose(fn, channel=None):
+    with _lock:
+        if _bus:
+            _bus.expose(fn, channel)
+        else:
+            _uninitialized_remote_fns.append((fn, channel))
 
 
 def start():
@@ -205,138 +251,7 @@ def shutdown():
         _runner = None
         _bus = None
         _uninitialized_subscribers.clear()
-        _remote_fns.clear()
-
-
-def rpc_channel(fn) -> str:
-    return fn.__module__ + '.' + fn.__qualname__
-
-
-class RpcRequest:
-    fn: str
-    args: List[Any]
-    callback_queue: str
-
-    def __init__(self, fn: str, callback_queue: str, args: List[Any] = None) -> None:
-        super().__init__()
-        self.fn = fn
-        self.args = args
-        self.callback_queue = callback_queue
-
-    def __str__(self) -> str:
-        return 'RpcRequest(%s)' % self.__dict__
-
-    def __repr__(self):
-        return self.__str__()
-
-
-class RpcResponse:
-    fn: str
-    result: Any
-    result_type: str
-    error: bool
-
-    def __init__(self, fn, result: Any, result_type: str = None, error=False) -> None:
-        super().__init__()
-        self.fn = fn
-        self.result = result
-        self.result_type = result_type or str(result.__class__)[8:-2]
-        self.error = error
-
-    def __str__(self) -> str:
-        return 'RpcResponse(%s)' % self.__dict__
-
-    def __repr__(self):
-        return self.__str__()
-
-
-def _skeleton_invoke(request: RpcRequest):
-    logger.debug('searching remote functions for %s in %s', request.fn, _remote_fns)
-
-    if request.fn not in _remote_fns:
-        raise ValueError('No such function %s' % request.fn)
-
-    fn = _remote_fns[request.fn]
-
-    spec = inspect.getfullargspec(fn)
-
-    if not spec.args:
-        if request.args:
-            raise TypeError('%s takes 0 positional arguments but %d were given' % (request.fn, len(request.args)))
-        return fn()
-
-    args = list()
-
-    if spec.args[0] == 'self':
-        spec.args.remove('self')
-
-    for i in range(min(len(request.args), len(spec.args))):
-        name = spec.args[i]
-        value = request.args[i]
-
-        if name in spec.annotations:
-            arg_type = spec.annotations[name]
-            value = deep_from_dict(value, arg_type)
-
-        args.append(value)
-
-    return fn(*args)
-
-
-def _rpc_wrapper(event: RpcRequest):
-    logger.debug('calling rpc wrapper with even %s', event)
-
-    try:
-        result = RpcResponse(event.fn, _skeleton_invoke(event))
-    except Exception as e:
-        logger.exception('Exception while invoking %s', event)
-        result = RpcResponse(event.fn, str(e), error=True)
-
-    queue(event.callback_queue).put(result)
-
-
-def rpc(fn: Union[str, Callable], *args, timeout=None) -> List[RpcResponse]:
-    callback_queue = '__rpc_' + str(uuid.uuid4())
-
-    if not isinstance(fn, str):
-        fn = rpc_channel(fn)
-
-    # FIXME: the fundamental issue with this approach is that a pattern subscription '*' will break this. because such a
-    #  subscription is probably just listening, and a real remote object, the expectation that there will be n results
-    #  may not be correct
-    n = publish(RpcRequest(fn, callback_queue, list(args)), channel=fn)
-
-    results = list()
-
-    for i in range(n):
-        try:
-            response: RpcResponse = queue(callback_queue).get(timeout=timeout)
-
-            if response.result is not None:
-                response.result = deep_from_dict(response.result, load_class(response.result_type))
-
-            results.append(response)
-        except Empty:
-            results.append(RpcResponse(fn, TimeoutError('Gave up waiting after %s' % timeout), error=True))
-
-    return results
-
-
-def expose(fn, channel=None):
-    with _lock:
-        if channel is None:
-            channel = rpc_channel(fn)
-
-        if channel in _remote_fns:
-            raise ValueError('Function on channel %s already exposed' % channel)
-
-        logger.debug('exposing to channel "%s" the callback %s', channel, fn)
-
-        callback = _rpc_wrapper
-
-        _remote_fns[channel] = fn
-
-        subscribe(callback, channel, False)
+        _uninitialized_remote_fns.clear()
 
 
 def remote(*args, **kwargs):

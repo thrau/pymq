@@ -50,6 +50,9 @@ def fullname(o):
 
 
 def deep_from_dict(doc, cls):
+    if doc is None:
+        return doc
+
     if type(doc) == cls:
         return doc
 
