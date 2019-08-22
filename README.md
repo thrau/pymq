@@ -117,7 +117,10 @@ result = remote() # result will be a list containing the results of all invocati
 Known Limitations
 -----------------
 
-Quite a few. TODO: document ;-)
+* JSON serialization relies heavily on type hints. Sending complex types without type hints will cause type errors.
+* There is currently no support for polymorphism with JSON serialization
+* Pattern-based topic matching does not work for the in-memory eventbus
+* Subscriptions by foreign components to RPC channels will cause issues in multi-call scenarios
 
 Background
 ----------
