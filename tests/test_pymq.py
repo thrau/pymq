@@ -6,13 +6,17 @@ from pymq import EventBus, StubMethod, Queue
 
 
 class MockedEventBus(EventBus):
+    # TODO: replace with unittest mocks
+
     published_events: list
     subscribers: list
+    exposed_methods: list
 
     def __init__(self) -> None:
         super().__init__()
         self.published_events = list()
         self.subscribers = list()
+        self.exposed_methods = list()
 
     def publish(self, event, channel=None):
         self.published_events.append((event, channel))
@@ -33,7 +37,7 @@ class MockedEventBus(EventBus):
         pass
 
     def expose(self, fn, channel=None):
-        pass
+        self.exposed_methods.append((fn, channel))
 
     def run(self):
         pass
@@ -45,6 +49,12 @@ class MockedEventBus(EventBus):
 class PyMQTest(unittest.TestCase):
     def test_queue_on_non_started_bus(self):
         self.assertRaises(ValueError, pymq.queue, 'foo')
+
+    def test_stub_on_non_started_bus(self):
+        def fn():
+            pass
+
+        self.assertRaises(ValueError, pymq.stub, fn)
 
     def test_start_without_init(self):
         self.assertRaises(ValueError, pymq.core.start)
@@ -79,5 +89,18 @@ class PyMQTest(unittest.TestCase):
 
         try:
             self.assertIn((callback, 'my_topic', False), bus.subscribers)
+        finally:
+            pymq.shutdown()
+
+    def test_late_expose(self):
+        def remote_fn():
+            pass
+
+        pymq.expose(remote_fn, channel='late_channel')
+
+        bus: MockedEventBus = pymq.init(MockedEventBus)
+
+        try:
+            self.assertIn((remote_fn, 'late_channel'), bus.exposed_methods)
         finally:
             pymq.shutdown()
