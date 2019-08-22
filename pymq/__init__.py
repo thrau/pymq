@@ -1,7 +1,7 @@
 import atexit
 
-from pymq.core import init, shutdown, publish, subscribe, unsubscribe, subscriber, Queue, Empty, \
-    queue, expose, stub, remote, RpcRequest, RpcResponse, Topic, subscribe, topic
+from pymq.core import init, shutdown, publish, subscribe, unsubscribe, subscriber, EventBus, Queue, Empty, \
+    queue, expose, stub, StubMethod, remote, RpcRequest, RpcResponse, Topic, subscribe, topic
 
 name = "pymq"
 
@@ -9,6 +9,8 @@ __all__ = [
     # server
     'init',
     'shutdown',
+    # core api
+    'EventBus',
     # pubsub
     'Topic',
     'topic',
@@ -26,6 +28,7 @@ __all__ = [
     'remote',
     'RpcResponse',
     'RpcRequest',
+    'StubMethod',
     # provider
     'provider'
 ]
