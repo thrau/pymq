@@ -20,6 +20,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/thrau/pymq",
+    download_url="https://pypi.org/project/pymq/",
     packages=setuptools.find_packages(),
     setup_requires=['wheel'],
     test_suite="tests",
