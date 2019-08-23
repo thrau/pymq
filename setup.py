@@ -26,6 +26,7 @@ setuptools.setup(
     test_suite="tests",
     tests_require=tests_require,
     install_requires=install_requires,
+    pyton_requires='>=3.6',
     classifiers=[
         "Programming Language :: Python :: 3.6",
         "License :: OSI Approved :: MIT License",
