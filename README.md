@@ -121,6 +121,8 @@ Known Limitations
 * There is currently no support for polymorphism with JSON serialization
 * Pattern-based topic matching does not work for the in-memory eventbus
 * Subscriptions by foreign components to RPC channels will cause issues in multi-call scenarios
+* Using the `pymq` singleton in multiprocessing scenarios may not work as expected because the module holds a Thread in
+  a global variable. A workaround is to re-start the bus by calling `shutdown()` and `init()` in the forked Process.
 
 Background
 ----------
