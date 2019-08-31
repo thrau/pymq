@@ -233,7 +233,7 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         callbacks = self._subscribers.get((channel, pattern))
 
-        if callback:
+        if callbacks:
             callbacks.remove(callback)
             if len(callbacks) == 0:
                 del self._subscribers[(channel, pattern)]

@@ -90,6 +90,12 @@ class AbstractPubSubTest(abc.ABC):
         time.sleep(0.2)
         self.assertFalse(called.is_set())
 
+    def test_unsubscribe_on_non_existing_listener_does_nothing(self):
+        def listener(event: SimpleEvent):
+            pass
+
+        pymq.unsubscribe(listener)
+
     def test_publish_on_exposed_listener_with_channel(self):
         invocations = queue.Queue()
 
