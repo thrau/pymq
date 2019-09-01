@@ -85,10 +85,10 @@ class EventBus(abc.ABC):
     def publish(self, event, channel=None):
         raise NotImplementedError
 
-    def subscribe(self, callback: Callable, channel, pattern=False):
+    def subscribe(self, callback: Callable, channel=None, pattern=False):
         raise NotImplementedError
 
-    def unsubscribe(self, callback: Callable, channel, pattern=False):
+    def unsubscribe(self, callback: Callable, channel=None, pattern=False):
         raise NotImplementedError
 
     def queue(self, name: str) -> Queue:

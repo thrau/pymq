@@ -226,7 +226,7 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._subscribers[(channel, pattern)].append(callback)
         self._subscribe(callback, channel, pattern)
 
-    def unsubscribe(self, callback, channel, pattern=False):
+    def unsubscribe(self, callback, channel=None, pattern=False):
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
