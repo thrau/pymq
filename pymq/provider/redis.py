@@ -144,7 +144,7 @@ class RedisEventBus(AbstractEventBus):
                 for fn in self._subscribers[key]:
                     logger.debug('dispatching %s to %s', message, fn)
 
-                self.dispatcher.submit(RedisEventBus._call_listener, fn, message['data'])
+                    self.dispatcher.submit(RedisEventBus._call_listener, fn, message['data'])
 
         except Exception as listen_error:
             logger.error(listen_error)

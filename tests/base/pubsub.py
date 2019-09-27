@@ -77,6 +77,26 @@ class AbstractPubSubTest(abc.ABC):
 
         self.assertTrue(listener.invocations.empty())
 
+    def test_multiple_typed_listeners_are_both_called(self):
+
+        called1 = threading.Event()
+        called2 = threading.Event()
+
+        def listener1(event: SimpleEvent):
+            called1.set()
+
+        def listener2(event: SimpleEvent):
+            called2.set()
+
+        pymq.subscribe(listener1)
+        pymq.subscribe(listener2)
+
+        pymq.publish(SimpleEvent())
+
+        self.assertTrue(called1.wait(0.5), 'listener1 was not called in time')
+        self.assertTrue(called2.wait(0.5), 'listener2 was not called in time')
+
+
     def test_remove_typed_listener_is_never_called(self):
         called = threading.Event()
 
