@@ -1,4 +1,3 @@
-import inspect
 import json
 import logging
 import threading
@@ -10,7 +9,7 @@ import redis
 from pymq import RpcRequest
 from pymq.core import Queue, Empty
 from pymq.json import DeepDictDecoder, DeepDictEncoder
-from pymq.provider.base import AbstractEventBus, DefaultSkeletonMethod
+from pymq.provider.base import AbstractEventBus, DefaultSkeletonMethod, invoke_function
 
 logger = logging.getLogger(__name__)
 
@@ -236,33 +235,7 @@ class RedisEventBus(AbstractEventBus):
 
     @staticmethod
     def _call_listener(fn, data):
-        # passes the event to the first parameter of the listener
-        try:
-            spec = inspect.getfullargspec(fn)
-            args = spec.args
-
-            if hasattr(fn, '__self__'):
-                # fn is bound to an object
-                event_arg = args[1]
-            else:
-                event_arg = args[0]
-
-            # checks whether the parameter has a type hint, and if so attempts to convert the event to the type
-
-            if event_arg in spec.annotations:
-                t = spec.annotations[event_arg]
-                logger.debug('instantiating new %s with event %s', t, data)
-                # this is sort of an implicit shallow (no nested objects) de-serialization. events classes are expected
-                # to have a constructor with kwargs that contain all the data.
-                event = json.loads(data, cls=DeepDictDecoder.for_type(t))
-            else:
-                event = json.loads(data, cls=DeepDictDecoder)
-
-            logger.debug('invoking %s with %s', fn, event)
-            # event listeners are expected to have exactly one parameter: the event
-            fn(event)
-        except Exception as e:
-            logger.exception(e)
+        invoke_function(fn, data)
 
     def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
         return RedisSkeletonMethod(self, channel, fn)
