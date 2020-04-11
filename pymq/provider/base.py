@@ -153,6 +153,9 @@ class DefaultStubMethod(StubMethod):
     def _next_callback_queue(self):
         return '__rpc_' + str(uuid.uuid4())
 
+    def _get_response_queue(self, request: RpcRequest):
+        return self._bus.queue(request.response_channel)
+
     def _invoke(self, request: RpcRequest) -> Union[RpcResponse, List[RpcResponse]]:
         # FIXME: the fundamental issue with this approach is that a pattern subscription '*' will break this. because
         #  such a subscription is probably just listening, and a real remote object, the expectation that there will
@@ -167,7 +170,7 @@ class DefaultStubMethod(StubMethod):
         if n == 0:
             raise NoSuchRemoteError(request.fn)
 
-        queue = self._bus.queue(request.response_channel)
+        queue = self._get_response_queue(request)
         try:
             results = list()
 
