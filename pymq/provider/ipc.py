@@ -201,7 +201,7 @@ class RoutingTable:
             try:
                 self.unsubscribe(channel)
             except Exception as e:
-                logger.error('Error while unsubscribing from %s: %s', t, e)
+                logger.error('Error while unsubscribing from %s: %s', channel, e)
 
 
 class IpcEventBus(AbstractEventBus):
