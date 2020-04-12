@@ -10,8 +10,12 @@ PyMQ is a simple message-oriented middleware library for implementing Python IPC
 enables different styles of remoting via Pub/Sub, Queues, and synchronous RPC.
 
 With PyMQ, developers can integrate Python applications running on different machines in a loosely coupled way over
-existing transport mechanisms. PyMQ currently provides a Redis backend, and an in-memory backend for testing. The API is
-extensible and other transports can be plugged in.
+existing transport mechanisms.
+PyMQ currently provides
+a Redis backend,
+a POSIX IPC backend for single-machine IPC, and
+an in-memory backend for testing.
+The API is extensible and other transports can be plugged in.
 
 Using PyMQ
 ----------
@@ -114,12 +118,22 @@ remote = pymq.stub('remote_method', multi=True, timeout=2)
 result = remote() # result will be a list containing the results of all invocations of available remote objects
 ```
 
+Providers
+---------
+
+* `SimpleEventBus` used for testing and rudimentary single-thread dispatching
+* `RedisEventBus` works across network and process boundaries but requires a running redis instance
+* `IpcEventBus` uses `posix_ipc` message queues as event loops and maintains a tree of topic subscriptions in
+  `/run/shm`. Useful for eventing across process boundaries without an additional server component.
+
 Known Limitations
 -----------------
 
 * JSON serialization relies heavily on type hints. Sending complex types without type hints will cause type errors.
 * There is currently no support for polymorphism with JSON serialization
-* Pattern-based topic matching does not work for the in-memory eventbus
+* Pattern-based topic matching does not work for the in-memory eventbus or the IPC event bus
+* You can only have a limited number of Queues when using the IPC provider, as the kernel limits the number of file
+  descriptors per process
 * Subscriptions by foreign components to RPC channels will cause issues in multi-call scenarios
 * Using the `pymq` singleton in multiprocessing scenarios may not work as expected because the module holds a Thread in
   a global variable. A workaround is to re-start the bus by calling `shutdown()` and `init()` in the forked Process.

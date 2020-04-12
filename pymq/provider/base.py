@@ -5,11 +5,51 @@ import uuid
 from collections import defaultdict
 from typing import Dict, Callable, List, Tuple, Union, Any
 
+from pymq import json
 from pymq.core import EventBus, Topic, RpcResponse, RpcRequest, StubMethod, Empty
 from pymq.exceptions import *
+from pymq.json import DeepDictDecoder
 from pymq.typing import fullname, deep_from_dict, load_class
 
 logger = logging.getLogger(__name__)
+
+
+def invoke_function(fn, data: str):
+    """
+    Invokes the passed function with the given data. Expects the data to be a JSON object that contains the serialized
+    parameters for the function.
+
+    :param fn: the function to invoke (a callable)
+    :param data: the json object containing the data
+    :return:
+    """
+    # passes the event to the first parameter of the listener
+    try:
+        spec = inspect.getfullargspec(fn)
+        args = spec.args
+
+        if hasattr(fn, '__self__'):
+            # fn is bound to an object
+            event_arg = args[1]
+        else:
+            event_arg = args[0]
+
+        # checks whether the parameter has a type hint, and if so attempts to convert the event to the type
+
+        if event_arg in spec.annotations:
+            t = spec.annotations[event_arg]
+            logger.debug('instantiating new %s with event %s', t, data)
+            # this is sort of an implicit shallow (no nested objects) de-serialization. events classes are expected
+            # to have a constructor with kwargs that contain all the data.
+            event = json.loads(data, cls=DeepDictDecoder.for_type(t))
+        else:
+            event = json.loads(data, cls=DeepDictDecoder)
+
+        logger.debug('invoking %s with %s', fn, event)
+        # event listeners are expected to have exactly one parameter: the event
+        fn(event)
+    except Exception as e:
+        logger.exception(e)
 
 
 def inspect_listener(fn) -> str:
@@ -113,6 +153,9 @@ class DefaultStubMethod(StubMethod):
     def _next_callback_queue(self):
         return '__rpc_' + str(uuid.uuid4())
 
+    def _get_response_queue(self, request: RpcRequest):
+        return self._bus.queue(request.response_channel)
+
     def _invoke(self, request: RpcRequest) -> Union[RpcResponse, List[RpcResponse]]:
         # FIXME: the fundamental issue with this approach is that a pattern subscription '*' will break this. because
         #  such a subscription is probably just listening, and a real remote object, the expectation that there will
@@ -122,26 +165,39 @@ class DefaultStubMethod(StubMethod):
         logger.debug('publishing to channel "%s" the request %s', fn, request)
         n = self._bus.publish(request, channel=fn)
 
+        if n is None:
+            raise RuntimeError('Implementation error in bus: publish returned None instead of subscriber count')
         if n == 0:
             raise NoSuchRemoteError(request.fn)
 
-        queue = self._bus.queue(request.response_channel)
+        queue = self._get_response_queue(request)
+        try:
+            results = list()
 
-        results = list()
+            for i in range(n):
+                try:
+                    logger.debug('waiting for response on queue %s, timeout %s,', queue.name, self.timeout)
+                    # FIXME: calculate overall remaining timeout
+                    response: RpcResponse = queue.get(timeout=self.timeout)
+                    results.append(response)
+                except Empty:
+                    response = RpcResponse(fn, ('Gave up waiting after %s' % self.timeout,), 'TimeoutError', True)
+                    results.append(response)
 
-        for i in range(n):
-            try:
-                logger.debug('waiting for response on queue %s, timeout %s,', queue.name, self.timeout)
-                response: RpcResponse = queue.get(timeout=self.timeout)  # FIXME: calculate overall remaining timeout
-                results.append(response)
-            except Empty:
-                response = RpcResponse(fn, ('Gave up waiting after %s' % self.timeout,), 'TimeoutError', True)
-                results.append(response)
+                if not self.multi:
+                    return results[0]
 
-            if not self.multi:
-                return results[0]
+            return results
+        finally:
+            self._finalize_response_queue(queue)
 
-        return results
+    def _finalize_response_queue(self, queue):
+        """
+        Hook to do something with the queue used as response channel once it's no longer needed.
+
+        :param queue: the response queue that was created for this invocation
+        """
+        pass
 
 
 class DefaultSkeletonMethod:
@@ -272,7 +328,7 @@ class AbstractEventBus(EventBus, abc.ABC):
     def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
         return DefaultSkeletonMethod(self, channel, fn)
 
-    def _publish(self, event, channel: str):
+    def _publish(self, event, channel: str) -> int:
         raise NotImplementedError
 
     def _subscribe(self, callback: Callable, channel: str, pattern: bool):

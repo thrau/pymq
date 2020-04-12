@@ -1,12 +1,13 @@
 import abc
 import logging
 import threading
-from queue import Empty
+from queue import Empty, Full
 from typing import Callable, Union, List, Any, Optional, Tuple, NamedTuple
 
 logger = logging.getLogger(__name__)
 
 Empty = Empty
+Full = Full
 
 
 class Queue(abc.ABC):
@@ -32,6 +33,12 @@ class Queue(abc.ABC):
 
     def get_nowait(self):
         return self.get(block=False)
+
+    def close(self):
+        pass
+
+    def free(self):
+        pass
 
 
 class Topic(abc.ABC):
@@ -245,7 +252,8 @@ def shutdown():
         if _runner is None:
             return
         logger.debug('stopping global event bus')
-        _bus.close()
+        if _bus is not None:
+            _bus.close()
         _runner.join()
         logger.debug('global event bus stopped')
         _runner = None
