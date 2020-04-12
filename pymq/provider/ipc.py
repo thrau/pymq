@@ -1,7 +1,7 @@
 import logging
 import os
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, List
 
 import posix_ipc as ipc
 
@@ -13,6 +13,14 @@ EVENT_PUBSUB = 0
 EVENT_RPC_RESPONSE = 1
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize(item):
+    return json.dumps(item, cls=json.DeepDictEncoder)
+
+
+def _deserialize(item):
+    return json.loads(item, cls=json.DeepDictDecoder)
 
 
 class IpcEvent(NamedTuple):
@@ -56,13 +64,13 @@ class IpcQueue(Queue):
             raise Empty
 
         msg, priority = response
-        return self._deserialize(msg)
+        return _deserialize(msg)
 
     def put(self, item, block=True, timeout=None):
         if not block:
             timeout = 0
 
-        data = self._serialize(item)
+        data = _serialize(item)
         logger.debug('putting into %s the item %s as data %s', self._mqname, item, data)
         try:
             return self._get_mq().send(data, timeout=timeout)
@@ -94,12 +102,6 @@ class IpcQueue(Queue):
             logger.debug('opening message queue %s', self._mqname)
             self._mq = ipc.MessageQueue(name=self._mqname, flags=ipc.O_CREAT)
 
-    def _serialize(self, item):
-        return json.dumps(item, cls=json.DeepDictEncoder)
-
-    def _deserialize(self, item):
-        return json.loads(item, cls=json.DeepDictDecoder)
-
 
 class IpcStubMethod(DefaultStubMethod):
     """
@@ -127,10 +129,83 @@ class IpcSkeletonMethod(DefaultSkeletonMethod):
             queue.close()
 
 
+class RoutingTable:
+    """
+    Uses a file tree to manage a pub/sub routing table for IpcEventBus.
+    """
+    bus: 'IpcEventBus'
+    ramdisk = '/run/shm'
+
+    def __init__(self, bus: 'IpcEventBus') -> None:
+        super().__init__()
+        self.subscriber_queue = bus.event_loop_name.lstrip('/')
+        self.tree = os.path.join(self.ramdisk, bus.namespace, 'subscribers')
+        self.subscriptions = set()
+
+        # prepare tree
+        os.makedirs(self.tree, exist_ok=True)
+
+    def get_subscribers(self, channel: str) -> List[str]:
+        topic_path = os.path.join(self.tree, channel)
+
+        if not os.path.exists(topic_path):
+            return []
+
+        return [path.name for path in os.scandir(topic_path)
+                if path.is_symlink() and path.is_file(follow_symlinks=True)]
+
+    def subscribe(self, channel: str):
+        logger.debug('subscribing %s to %s', self.subscriber_queue, channel)
+
+        self.subscriptions.add(channel)
+        topic_path = os.path.join(self.tree, channel)
+        mq_path = os.path.join('/dev/mqueue', self.subscriber_queue)
+
+        logger.debug(f'mkdir -p {topic_path}')
+        os.makedirs(topic_path, exist_ok=True)
+
+        src = mq_path
+        dst = os.path.join(topic_path, os.path.basename(mq_path))
+
+        if os.path.exists(dst):
+            return
+
+        try:
+            logger.debug(f'ln -s {src} {dst}')
+            os.symlink(src, dst)
+        except FileExistsError:
+            logger.warning('Race condition on creating subscriber %s', src)
+
+    def unsubscribe(self, channel: str):
+        # check if subscriber callbacks are empty for this topic, if so, remove the queue link
+        logger.debug('unsubscribing from %s', channel)
+
+        topic_path = os.path.join(self.tree, channel)
+        link_path = os.path.join(topic_path, self.subscriber_queue)
+
+        try:
+            self.subscriptions.remove(channel)
+        except KeyError:
+            pass
+
+        try:
+            logger.debug('unlink %s', link_path)
+            os.unlink(link_path)
+        except FileNotFoundError:
+            logger.debug('tried to unlink %s, but did not exist', link_path)
+
+    def clear(self):
+        logger.debug('removing subscriptions')
+        channels = list(self.subscriptions)
+        for channel in channels:
+            try:
+                self.unsubscribe(channel)
+            except Exception as e:
+                logger.error('Error while unsubscribing from %s: %s', t, e)
+
+
 class IpcEventBus(AbstractEventBus):
     POISON = '__STOP_EVENTBUS__'
-
-    ramdisk = '/run/shm'
 
     def __init__(self, namespace='global', dispatcher=None) -> None:
         super().__init__()
@@ -138,19 +213,14 @@ class IpcEventBus(AbstractEventBus):
         self._closed = False
         self.event_loop = None
         self.dispatcher: ThreadPoolExecutor = dispatcher
-
-        self._tmpdir = os.path.join(self.ramdisk, 'pymq', self.namespace)
+        self.rtable = RoutingTable(self)
 
     @property
-    def _event_loop_name(self):
-        return self._get_mqueue_name('$%d' % os.getpid())
+    def event_loop_name(self):
+        return self.to_mqueue_name('$%d' % os.getpid())
 
-    def _get_mqueue_name(self, name):
-        return self.create_mqueue_name(self.namespace, name)
-
-    @staticmethod
-    def create_mqueue_name(namespace, name):
-        return '/pymq_%s_%s' % (namespace, name)
+    def to_mqueue_name(self, name):
+        return '/pymq_%s_%s' % (self.namespace, name)
 
     def run(self):
         # TODO: locking
@@ -158,11 +228,8 @@ class IpcEventBus(AbstractEventBus):
         if self.dispatcher is None:
             self.dispatcher = ThreadPoolExecutor(1)
 
-        # prepare pubsub engine
-        os.makedirs(self._tmpdir, exist_ok=True)
-
         # prepare event loop queue, use pid as mq event loop name
-        event_loop = IpcQueue(name='eventloop_%s' % self.namespace, mqname=self._event_loop_name)
+        event_loop = IpcQueue(name='eventloop_%s' % self.namespace, mqname=self.event_loop_name)
         self.event_loop = event_loop
 
         try:
@@ -202,13 +269,8 @@ class IpcEventBus(AbstractEventBus):
         logger.debug('unlinking event loop message queue')
         self.event_loop.free()
 
-        logger.debug('removing subscriptions')
-        for t, pattern in self._subscribers:
-            topic_path = os.path.join(self._tmpdir, 'subscribers', t)
-            link_path = os.path.join(topic_path, self._event_loop_name.lstrip('/'))
-
-            logger.debug('unlink %s', link_path)
-            os.unlink(link_path)
+        logger.debug('clearing routing table')
+        self.rtable.clear()
 
     def close(self):
         if self._closed:
@@ -219,20 +281,18 @@ class IpcEventBus(AbstractEventBus):
             self.event_loop.put(self.POISON)
 
     def queue(self, name: str) -> IpcQueue:
-        return IpcQueue(name, mqname=self._get_mqueue_name(name))
+        return IpcQueue(name, mqname=self.to_mqueue_name(name))
 
     def _publish(self, event, channel: str) -> int:
         # create a protocol message
-        msg = IpcEvent(EVENT_PUBSUB, channel, self._serialize(event))
+        msg = IpcEvent(EVENT_PUBSUB, channel, _serialize(event))
+        subscribers = self.rtable.get_subscribers(channel)
 
-        topic_path = os.path.join(self._tmpdir, 'subscribers', channel)
-        if not os.path.exists(topic_path):
+        if not subscribers:
             return 0
 
-        queues = ['/' + path.name for path in os.scandir(topic_path) if path.is_symlink()]
-
+        queues = ['/' + subscriber for subscriber in subscribers]
         logger.debug('publishing event in %s into %s', channel, queues)
-
         for queue in queues:
             q = IpcQueue(queue)
             try:
@@ -245,46 +305,12 @@ class IpcEventBus(AbstractEventBus):
     def _subscribe(self, callback: Callable, channel: str, pattern: bool):
         if pattern:
             raise NotImplementedError
-
-        logger.debug('subscribing to %s', channel)
-
-        topic_path = os.path.join(self._tmpdir, 'subscribers', channel)
-        mq_path = os.path.join('/dev/mqueue', self._event_loop_name.lstrip('/'))
-
-        logger.debug(f'mkdir -p {topic_path}')
-        os.makedirs(topic_path, exist_ok=True)
-
-        src = mq_path
-        dst = os.path.join(topic_path, os.path.basename(mq_path))
-
-        if os.path.exists(dst):
-            return
-
-        try:
-            logger.debug(f'ln -s {src} {dst}')
-            os.symlink(src, dst)
-        except FileExistsError:
-            logger.warning('Race condition on creating subscriber %s', src)
+        self.rtable.subscribe(channel)
 
     def _unsubscribe(self, callback: Callable, channel: str, pattern: bool):
         if pattern:
             raise NotImplementedError
-
-        # check if subscriber callbacks are empty for this topic, if so, remove the queue link
-        logger.debug('unsubscribing from %s', channel)
-
-        topic_path = os.path.join(self._tmpdir, 'subscribers', channel)
-        link_path = os.path.join(topic_path, self._event_loop_name.lstrip('/'))
-
-        if os.path.exists(link_path):
-            logger.debug('unlink %s', link_path)
-            os.unlink(link_path)
-
-    def _serialize(self, item):
-        return json.dumps(item, cls=json.DeepDictEncoder)
-
-    def _deserialize(self, item):
-        return json.loads(item, cls=json.DeepDictDecoder)
+        self.rtable.unsubscribe(channel)
 
     @staticmethod
     def _call_listener(fn, data: str):
