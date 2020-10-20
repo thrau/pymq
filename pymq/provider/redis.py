@@ -92,14 +92,31 @@ class RedisEventBus(AbstractEventBus):
         self.namespace = namespace
         self.dispatcher: ThreadPoolExecutor = dispatcher
         self.rds: redis.Redis = rds
-        self.pubsub: redis.client.PubSub = None
-        self._submon = threading.Event()  # FIXME: use condition instead to avoid race conditions
 
-        self._lock = threading.Lock()
+        self._pubsub: redis.client.PubSub = None
+        self._lock = threading.Condition()
         self._closed = False
-        self._started = False
 
         self.channel_prefix = '__eventbus:' + self.namespace + ":"
+
+    def _listen(self):
+        while True:
+            if not self._pubsub:
+                logger.error('invalid state, pubsub object is not set')
+                return
+
+            logger.debug('waiting for subscriptions to appear')
+            with self._lock:
+                self._lock.wait_for(lambda: self._pubsub.subscribed or self._closed)
+
+            if self._closed:
+                logger.debug('eventbus closed, listening stops')
+                return
+
+            logger.debug('subscriptions available starting to listen on pubsub object')
+
+            yield from self._pubsub.listen()
+            logger.debug('pubsub listen returned, waiting on next iteration')
 
     def run(self):
         with self._lock:
@@ -109,22 +126,15 @@ class RedisEventBus(AbstractEventBus):
             if self.rds is None:
                 self.rds = redis.Redis(decode_responses=True)
 
-            self.pubsub = self.rds.pubsub()
+            self._pubsub = self.rds.pubsub()
 
-            self._started = True
             self._init_subscriptions()
+            self._lock.notify()
 
         try:
-            if not self.pubsub.subscribed:
-                logger.debug('waiting for subscriptions to appear')
-                self._submon.wait()
-                self._submon.clear()
-
             logger.debug('starting to listen on pubsub...')
-            for message in self.pubsub.listen():
+            for message in self._listen():
                 logger.debug('got message %s', message)
-                if self._closed:
-                    break
 
                 if not (message['type'] == 'message' or message['type'] == 'pmessage'):
                     continue
@@ -152,28 +162,35 @@ class RedisEventBus(AbstractEventBus):
             logger.debug('acquiring close lock')
             with self._lock:
                 logger.debug('closing pubsub')
-                self.pubsub.close()
+                self._pubsub.close()
 
         logger.debug('exitting eventbus listen loop')
 
     def subscribe(self, callback, channel=None, pattern=False):
         with self._lock:
             super().subscribe(callback, channel, pattern)
+            self._lock.notify()
+
+    def unsubscribe(self, callback, channel=None, pattern=False):
+        with self._lock:
+            super().unsubscribe(callback, channel, pattern)
+            self._lock.notify()
 
     def close(self):
         with self._lock:
-            if self._closed or not self._started:
+            if self._closed or not self._pubsub:
                 return
 
             self._closed = True
 
             logger.debug('unsubscribing from all channels')
-            self.pubsub.punsubscribe()
-            self.pubsub.unsubscribe()
+            self._pubsub.punsubscribe()
+            self._pubsub.unsubscribe()
+
+            self._lock.notify()
 
         logger.debug('shutting down dispatcher')
         self.dispatcher.shutdown()
-        self._submon.set()
         logger.debug('shutdown complete')
 
     def queue(self, name: str) -> Queue:
@@ -188,23 +205,20 @@ class RedisEventBus(AbstractEventBus):
         return self.rds.publish(redis_channel, data)
 
     def _subscribe(self, _: Callable, channel: str, pattern: bool):
-        if self.pubsub is None:
+        if self._pubsub is None or self._closed:
             return
 
         redis_channel = self.channel_prefix + channel
 
         if pattern:
-            if redis_channel not in self.pubsub.patterns:
-                self.pubsub.psubscribe(redis_channel)
+            if redis_channel not in self._pubsub.patterns:
+                self._pubsub.psubscribe(redis_channel)
         else:
-            if redis_channel not in self.pubsub.channels:
-                self.pubsub.subscribe(redis_channel)
-
-        if not self._submon.is_set():
-            self._submon.set()
+            if redis_channel not in self._pubsub.channels:
+                self._pubsub.subscribe(redis_channel)
 
     def _unsubscribe(self, _: Callable, channel: str, pattern: bool):
-        if self.pubsub is None:
+        if self._pubsub is None:
             return
 
         if (channel, pattern) in self._subscribers:
@@ -215,11 +229,11 @@ class RedisEventBus(AbstractEventBus):
         redis_channel = self.channel_prefix + channel
 
         if pattern:
-            if redis_channel in self.pubsub.patterns:
-                self.pubsub.punsubscribe(redis_channel)
+            if redis_channel in self._pubsub.patterns:
+                self._pubsub.punsubscribe(redis_channel)
         else:
-            if redis_channel in self.pubsub.channels:
-                self.pubsub.unsubscribe(redis_channel)
+            if redis_channel in self._pubsub.channels:
+                self._pubsub.unsubscribe(redis_channel)
 
     def _init_subscriptions(self):
         logger.debug('initializing subscriptions %s', self._subscribers)
@@ -228,10 +242,10 @@ class RedisEventBus(AbstractEventBus):
 
         if channels:
             logger.debug('initializing channel subscriptions %s', channels)
-            self.pubsub.subscribe(*channels)
+            self._pubsub.subscribe(*channels)
         if patterns:
             logger.debug('initializing pattern subscriptions %s', patterns)
-            self.pubsub.psubscribe(*patterns)
+            self._pubsub.psubscribe(*patterns)
 
     @staticmethod
     def _call_listener(fn, data):

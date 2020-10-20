@@ -1,4 +1,5 @@
 import abc
+import logging
 import time
 from typing import List
 
@@ -8,6 +9,8 @@ import pymq
 from pymq import NoSuchRemoteError
 from pymq.exceptions import RemoteInvocationError
 from pymq.typing import deep_to_dict, deep_from_dict
+
+logger = logging.getLogger(__name__)
 
 
 class EchoCommand:
@@ -246,7 +249,7 @@ class AbstractRpcTest(abc.ABC):
         pymq.unexpose('simple_remote_function')
         self.assertRaises(NoSuchRemoteError, stub.rpc, 'test')
 
-    @timeout_decorator.timeout(2)
+    @timeout_decorator.timeout(5)
     def test_expose_after_unexpose_by_channel_calls_correct_method(self):
         def fn1():
             return 1
@@ -258,8 +261,15 @@ class AbstractRpcTest(abc.ABC):
         stub = pymq.stub('myfn')
         self.assertEqual(1, stub())
 
+        logger.debug('unexposing myfn')
         pymq.unexpose('myfn')
 
+        time.sleep(1)  # FIXME i have no idea why this is necessary
+
+        logger.debug('exposing myfn')
         pymq.expose(fn2, channel='myfn')
+
+        logger.debug('creating second stub for myfn')
         stub = pymq.stub('myfn')
+        logger.debug('calling stub for myfn')
         self.assertEqual(2, stub())

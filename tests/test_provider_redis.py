@@ -148,6 +148,75 @@ class RedisRpcTest(RedisEventbusTestBase, AbstractRpcTest):
         self.assertEqual(0, len(keys), 'key did not expire')
 
 
+class RedisLateInitTest(unittest.TestCase):
+    redis: RedisResource = RedisResource()
+    bus: RedisEventBus
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.redis.setUp()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.redis.tearDown()
+
+    def init(self) -> None:
+        self.bus = pymq.init(RedisConfig(self.redis.rds))
+
+    def tearDown(self) -> None:
+        pymq.shutdown()
+        self.redis.rds.flushall()
+
+    @timeout_decorator.timeout(5)
+    def test_early_expose(self):
+        def remote_fn():
+            return 'hello'
+
+        pymq.expose(remote_fn, 'remote_fn')
+
+        self.init()
+
+        stub = pymq.stub('remote_fn')
+        self.assertEqual('hello', stub())
+
+    @timeout_decorator.timeout(5)
+    def test_early_subscribe(self):
+        event = threading.Event()
+
+        def subscriber(arg):
+            event.set()
+
+        pymq.subscribe(subscriber, 'my_channel')
+
+        self.init()
+
+        pymq.publish('hello', 'my_channel')
+
+        self.assertTrue(event.wait(2))
+
+    @timeout_decorator.timeout(10)
+    def test_early_subscribe_and_resubscribe(self):
+        event = threading.Event()
+
+        def subscriber(arg):
+            event.set()
+
+        pymq.subscribe(subscriber, 'my_channel')
+
+        self.init()
+
+        pymq.publish('hello', 'my_channel')
+        self.assertTrue(event.wait(2))
+        event.clear()
+
+        pymq.unsubscribe(subscriber, 'my_channel')
+        self.assertFalse(event.wait(1))
+
+        pymq.subscribe(subscriber, 'my_channel')
+        pymq.publish('hello', 'my_channel')
+        self.assertTrue(event.wait(2))
+
+
 del RedisEventbusTestBase
 
 if __name__ == '__main__':
