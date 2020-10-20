@@ -126,6 +126,11 @@ Providers
 * `IpcEventBus` uses `posix_ipc` message queues as event loops and maintains a tree of topic subscriptions in
   `/run/shm`. Useful for eventing across process boundaries without an additional server component.
 
+Compatibility
+-------------
+
+Python 3.6+
+
 Known Limitations
 -----------------
 
