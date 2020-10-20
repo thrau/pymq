@@ -5,6 +5,7 @@ from typing import List
 from timeout_decorator import timeout_decorator
 
 import pymq
+from pymq import NoSuchRemoteError
 from pymq.exceptions import RemoteInvocationError
 from pymq.typing import deep_to_dict, deep_from_dict
 
@@ -92,6 +93,16 @@ class AbstractRpcTest(abc.ABC):
         self.assertEqual('some_function', request_unmarshalled.fn)
         self.assertEqual('callback_queue', request_unmarshalled.response_channel)
         self.assertEqual(('simple_arg',), request_unmarshalled.args)
+
+    @timeout_decorator.timeout(2)
+    def test_rpc_on_non_exposed_remote_raises_exception(self):
+        stub = pymq.stub('simple_remote_function')
+        self.assertRaises(NoSuchRemoteError, stub.rpc, 'test')
+
+    @timeout_decorator.timeout(2)
+    def test_call_on_non_exposed_remote_returns_none(self):
+        stub = pymq.stub('simple_remote_function')
+        self.assertIsNone(stub('test'))
 
     @timeout_decorator.timeout(2)
     def test_void_function(self):
@@ -192,3 +203,63 @@ class AbstractRpcTest(abc.ABC):
             self.fail('Should have thrown exception, but received result %s' % result)
         except RemoteInvocationError as e:
             self.assertIn('ValueError', str(e))
+
+    @timeout_decorator.timeout(2)
+    def test_expose_multiple_times_raises_error(self):
+        pymq.expose(void_function)
+
+        try:
+            pymq.expose(void_function)
+            self.fail('expected exception when exposing a function on the same channel')
+        except ValueError:
+            pass
+
+    @timeout_decorator.timeout(2)
+    def test_expose_multiple_by_channel_times_raises_error(self):
+        pymq.expose(void_function, channel='void_function')
+
+        try:
+            pymq.expose(void_function, channel='void_function')
+            self.fail('expected exception when exposing a function on the same channel')
+        except ValueError:
+            pass
+
+    @timeout_decorator.timeout(2)
+    def test_expose_after_unexpose(self):
+        pymq.expose(void_function)
+        pymq.unexpose(void_function)
+        pymq.expose(void_function)
+
+    @timeout_decorator.timeout(2)
+    def test_expose_after_unexpose_by_channel(self):
+        pymq.expose(void_function, channel='void_function')
+        pymq.unexpose('void_function')
+        pymq.expose(void_function, channel='void_function')
+
+    @timeout_decorator.timeout(2)
+    def test_rpc_after_unexpose_raises_exception(self):
+        pymq.expose(simple_remote_function, 'simple_remote_function')
+
+        stub = pymq.stub('simple_remote_function')
+        self.assertEqual('Hello test!', stub('test'))
+
+        pymq.unexpose('simple_remote_function')
+        self.assertRaises(NoSuchRemoteError, stub.rpc, 'test')
+
+    @timeout_decorator.timeout(2)
+    def test_expose_after_unexpose_by_channel_calls_correct_method(self):
+        def fn1():
+            return 1
+
+        def fn2():
+            return 2
+
+        pymq.expose(fn1, channel='myfn')
+        stub = pymq.stub('myfn')
+        self.assertEqual(1, stub())
+
+        pymq.unexpose('myfn')
+
+        pymq.expose(fn2, channel='myfn')
+        stub = pymq.stub('myfn')
+        self.assertEqual(2, stub())

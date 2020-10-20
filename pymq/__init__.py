@@ -1,7 +1,7 @@
 import atexit
 
 from pymq.core import init, shutdown, publish, subscribe, unsubscribe, subscriber, EventBus, Queue, Empty, \
-    queue, expose, stub, StubMethod, remote, RpcRequest, RpcResponse, Topic, subscribe, topic
+    queue, expose, unexpose, stub, StubMethod, remote, RpcRequest, RpcResponse, Topic, subscribe, topic
 from pymq.exceptions import RpcException, NoSuchRemoteError, RemoteInvocationError
 
 name = "pymq"
@@ -26,6 +26,7 @@ __all__ = [
     # rpc
     'stub',
     'expose',
+    'unexpose',
     'remote',
     'RpcResponse',
     'RpcRequest',

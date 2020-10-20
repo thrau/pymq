@@ -110,6 +110,9 @@ class EventBus(abc.ABC):
     def expose(self, fn, channel=None):
         raise NotImplementedError
 
+    def unexpose(self, fn):
+        raise NotImplementedError
+
 
 _uninitialized_subscribers: List[Tuple[Callable, str, bool]] = list()
 _uninitialized_remote_fns: List[Tuple[Callable, str]] = list()
@@ -231,6 +234,15 @@ def expose(fn, channel=None):
             _bus.expose(fn, channel)
         else:
             _uninitialized_remote_fns.append((fn, channel))
+
+
+def unexpose(fn):
+    if _bus is None:
+        # FIXME: will not remote uninitialized skeletons
+        logger.error('Event bus was not initialized, cannot unexpose method. Please run pymq.init')
+        raise ValueError('Bus not set yet')
+
+    return _bus.unexpose(fn)
 
 
 def start():

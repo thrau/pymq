@@ -199,6 +199,12 @@ class DefaultStubMethod(StubMethod):
         """
         pass
 
+    def __repr__(self):
+        if self._spec is None:
+            return '%s()' % self._channel
+        else:
+            return '%s(%s)' % (self._channel, self._spec)
+
 
 class DefaultSkeletonMethod:
     _bus: EventBus
@@ -320,13 +326,34 @@ class AbstractEventBus(EventBus, abc.ABC):
         skeleton = self._create_skeleton_method(channel, fn)
 
         self._remote_fns[channel] = skeleton
-        self.subscribe(skeleton, channel, False)
+        self._bind_skeleton_method(skeleton, channel)
+
+    def unexpose(self, fn):
+        if callable(fn):
+            channel = get_remote_name(fn)
+        elif isinstance(fn, str):
+            channel = fn
+        else:
+            raise TypeError('cannot create stub for fn type %s' % type(fn))
+
+        if channel not in self._remote_fns:
+            return
+
+        skeleton = self._remote_fns[channel]
+        del self._remote_fns[channel]
+        self._unbind_skeleton_method(skeleton, channel)
 
     def _create_stub_method(self, channel, spec, timeout, multi):
         return DefaultStubMethod(self, channel, spec, timeout, multi)
 
     def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
         return DefaultSkeletonMethod(self, channel, fn)
+
+    def _bind_skeleton_method(self, skeleton, channel: str):
+        self.subscribe(skeleton, channel, False)
+
+    def _unbind_skeleton_method(self, skeleton, channel: str):
+        self.unsubscribe(skeleton, channel, False)
 
     def _publish(self, event, channel: str) -> int:
         raise NotImplementedError
