@@ -1,5 +1,5 @@
 redislite>=5.0.124623
 timeout_decorator>=0.4.1
 coverage>=4.5.3
-python-coveralls>=2.9.3
 pytest-cov>=2.7.1
+coveralls
