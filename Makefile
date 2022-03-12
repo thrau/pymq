@@ -22,6 +22,12 @@ format:
 test: venv
 	$(VENV_RUN); python -m pytest --cov pymq/
 
+test-coverage: venv
+	$(VENV_RUN); coverage run --source=pymq -m pytest tests && coverage lcov -o .coverage.lcov
+
+coveralls: venv
+	$(VENV_RUN); coveralls
+
 dist: venv
 	$(VENV_RUN); python setup.py sdist bdist_wheel
 
