@@ -1,0 +1,27 @@
+# PyMQ project configuration
+[build-system]
+requires = ['setuptools', 'wheel']
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line_length = 100
+include = '((pymq)/.*\.py$|tests/.*\.py$)'
+#extend_exclude = '()'
+
+[tool.isort]
+profile = 'black'
+#extend_skip = []
+line_length = 100
+
+[tool.coverage.run]
+relative_files = true
+source = [
+    "pymq/"
+]
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__ == .__main__.:",
+    "raise NotImplemented.",
+    "return NotImplemented",
+    "def __repr__",
+]

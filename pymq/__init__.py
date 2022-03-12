@@ -6,6 +6,8 @@ from pymq.exceptions import RpcException, NoSuchRemoteError, RemoteInvocationErr
 
 name = "pymq"
 
+__version__ = "0.5.0.dev1"
+
 __all__ = [
     # server
     'init',

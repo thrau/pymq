@@ -1,2 +1,0 @@
-redis>=3.2.1
-posix_ipc==1.0.4

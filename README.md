@@ -20,6 +20,15 @@ The API is extensible and other transports can be plugged in.
 Using PyMQ
 ----------
 
+### Install
+
+Starting from pymq 0.5, all providers are separated into setuptools extras.
+If you want to use the redis backend, then run
+
+    pip install pymq[redis]
+
+or `pymq[full]` for all providers.
+
 ### Initialize PyMQ
 
 The core module manages a global eventbus instance that provides the remoting primitives. The default Redis

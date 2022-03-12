@@ -1,15 +1,14 @@
-VENV_BIN = python3.7 -m venv
+VENV_BIN = python3 -m venv
 VENV_DIR ?= .venv
+VENV_ACTIVATE = $(VENV_DIR)/bin/activate
+VENV_RUN = . $(VENV_ACTIVATE)
 
-VENV_ACTIVATE = . $(VENV_DIR)/bin/activate
+venv: $(VENV_ACTIVATE)
 
-
-venv: $(VENV_DIR)/bin/activate
-
-$(VENV_DIR)/bin/activate: requirements.txt requirements-dev.txt
+$(VENV_ACTIVATE): setup.py setup.cfg pyproject.toml
 	test -d .venv || $(VENV_BIN) .venv
-	$(VENV_ACTIVATE); pip install -Ur requirements.txt
-	$(VENV_ACTIVATE); pip install -Ur requirements-dev.txt
+	$(VENV_RUN); pip install --upgrade pip setuptools wheel
+	$(VENV_RUN); pip install -e .[full,test]
 	touch $(VENV_DIR)/bin/activate
 
 clean:
@@ -17,23 +16,17 @@ clean:
 	rm -rf .eggs/
 	rm -rf *.egg-info/
 
-build: venv
-	$(VENV_ACTIVATE); python setup.py build
+format:
+	$(VENV_RUN); python -m isort .; python -m black .
 
 test: venv
-	$(VENV_ACTIVATE); python setup.py test
-
-pytest: venv
-	$(VENV_ACTIVATE); pytest --cov pymq/
+	$(VENV_RUN); python -m pytest --cov pymq/
 
 dist: venv
-	$(VENV_ACTIVATE); python setup.py sdist bdist_wheel
+	$(VENV_RUN); python setup.py sdist bdist_wheel
 
-install: venv
-	$(VENV_ACTIVATE); python setup.py install
-
-deploy: venv test dist
-	$(VENV_ACTIVATE); pip install --upgrade twine; twine upload dist/*
+deploy: clean-dist venv test dist
+	$(VENV_RUN); pip install --upgrade twine; twine upload dist/*
 
 clean-dist: clean
 	rm -rf dist/
