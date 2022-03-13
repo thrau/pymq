@@ -160,7 +160,7 @@ def deep_to_dict(obj):
         return {k: deep_to_dict(v) for k, v in obj.items()}
 
     if isinstance(obj, set):
-        return {deep_to_dict(a) for a in obj}
+        return [deep_to_dict(a) for a in obj]
 
     if isinstance(obj, (type, types.MethodType, types.FunctionType)):
         return fullname(obj)

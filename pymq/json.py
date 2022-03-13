@@ -7,17 +7,17 @@ loads = json.loads
 
 
 class DeepDictEncoder(json.JSONEncoder):
-    def encode(self, o):
-        d = deep_to_dict(o)
+    def encode(self, obj):
+        doc = deep_to_dict(obj)
 
-        if isinstance(o, (bool, int, float, str, list, dict)):
-            return super().encode(o)
+        if isinstance(obj, (bool, int, float, str, list, dict)):
+            return super().encode(obj)
 
-        if isinstance(d, dict):
-            d["__type"] = fullname(o)
-            return super().encode(d)
+        if isinstance(doc, dict):
+            doc["__type"] = fullname(obj)
+            return super().encode(doc)
         else:
-            return super().encode({"__obj": d, "__type": fullname(o)})
+            return super().encode({"__obj": doc, "__type": fullname(obj)})
 
 
 class DeepDictDecoder(json.JSONDecoder):

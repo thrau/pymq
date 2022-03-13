@@ -55,10 +55,20 @@ class ClassWithAny:
         self.arg = arg
 
 
+class ClassWithSet:
+    simple_set: Set[str]
+
+    def __init__(self, simple_set) -> None:
+        super().__init__()
+        self.simple_set = simple_set
+
+
 class ModifiedDeepDictDecoder(DeepDictDecoder):
     def _load_class(self, class_name):
         if class_name.endswith("RootClass"):
             return RootClass
+        if class_name.endswith("ClassWithSet"):
+            return ClassWithSet
 
         return super()._load_class(class_name)
 
@@ -124,12 +134,51 @@ class TestMarhsalling:
         t_nested = ClassWithAny(SimpleNested("foo", 42))
         assert {"arg": {"name": "foo", "value": 42}} == deep_to_dict(t_nested)
 
+    def test_to_dict_set(self):
+        obj = ClassWithSet({"foo", "bar"})
+        doc = deep_to_dict(obj)
+
+        assert "foo" in doc["simple_set"]
+        assert "bar" in doc["simple_set"]
+        assert len(doc["simple_set"]) == 2
+
     def test_from_dict_any(self):
         t_int = deep_from_dict({"arg": 1}, ClassWithAny)
         assert 1 == t_int.arg
 
         t_dict = deep_from_dict({"arg": {"a": 1, "b": 2}}, ClassWithAny)
         assert {"a": 1, "b": 2} == t_dict.arg
+
+    def test_from_dict_set(self):
+        def do_assert(_obj: ClassWithSet):
+            assert "foo" in _obj.simple_set
+            assert "bar" in _obj.simple_set
+            assert type(_obj.simple_set) == set
+            assert len(_obj.simple_set) == 2
+
+        do_assert(deep_from_dict({"simple_set": {"foo", "bar"}}, ClassWithSet))
+        do_assert(deep_from_dict({"simple_set": ["foo", "bar"]}, ClassWithSet))
+        do_assert(deep_from_dict({"simple_set": ("foo", "bar")}, ClassWithSet))
+
+    def test_encode_set(self):
+        json_string = json.dumps(ClassWithSet({"foo", "bar"}), cls=DeepDictEncoder)
+        doc = json.loads(json_string)
+
+        assert doc["__type"] == fullname(ClassWithSet)
+        assert "foo" in doc["simple_set"]
+        assert "bar" in doc["simple_set"]
+        assert len(doc["simple_set"]) == 2
+
+    def test_decode_set(self):
+        json_string = '{"simple_set": ["foo", "bar"], "__type": "%s"}' % fullname(ClassWithSet)
+
+        obj = json.loads(json_string, cls=DeepDictDecoder)
+
+        assert type(obj) == ClassWithSet
+        assert "foo" in obj.simple_set
+        assert "bar" in obj.simple_set
+        assert type(obj.simple_set) == set
+        assert len(obj.simple_set) == 2
 
     def test_from_dict_base_cases(self):
         assert 1 == deep_from_dict(1, int)
@@ -138,6 +187,7 @@ class TestMarhsalling:
         assert (1, 2) == deep_from_dict((1, 2), tuple)
         assert [1, 2] == deep_from_dict([1, 2], list)
         assert (1, 2) == deep_from_dict([1, 2], tuple)
+        assert {1, 2} == deep_from_dict({1, 2}, set)
         assert {1, 2} == deep_from_dict([1, 2], set)
         assert {"1", "2"} == deep_from_dict(["1", "2"], set)
 
