@@ -42,7 +42,6 @@ class RedisQueueTest(RedisEventbusTestBase, AbstractQueueTest):
 
 
 class InitSubscribersTest(RedisEventbusTestBase):
-
     def setUp(self) -> None:
         pass
 
@@ -55,14 +54,14 @@ class InitSubscribersTest(RedisEventbusTestBase):
         def handler(event: str):
             invocations.put(event)
 
-        pymq.subscribe(handler, channel='early/subscription')
+        pymq.subscribe(handler, channel="early/subscription")
 
-        pymq.publish('hello', channel='early/subscription')  # doesn't do anything
+        pymq.publish("hello", channel="early/subscription")  # doesn't do anything
 
         try:
             super().setUp()
-            pymq.publish('hello', channel='early/subscription')
-            self.assertEqual('hello', invocations.get(timeout=1))
+            pymq.publish("hello", channel="early/subscription")
+            self.assertEqual("hello", invocations.get(timeout=1))
             self.assertEqual(0, invocations.qsize())
         finally:
             super().tearDown()
@@ -73,25 +72,27 @@ class InitSubscribersTest(RedisEventbusTestBase):
         def handler(event: str):
             invocations.put(event)
 
-        pymq.subscribe(handler, channel='early/subscription')
-        pymq.unsubscribe(handler, channel='early/subscription')
+        pymq.subscribe(handler, channel="early/subscription")
+        pymq.unsubscribe(handler, channel="early/subscription")
 
         try:
             super().setUp()
-            pymq.publish('hello', channel='early/subscription')
+            pymq.publish("hello", channel="early/subscription")
             self.assertRaises(queue.Empty, invocations.get, timeout=0.25)
         finally:
             super().tearDown()
 
 
 class RedisPubSubTest(RedisEventbusTestBase, AbstractPubSubTest):
-
     def test_add_listener_creates_subscription_correctly(self):
         def listener(event: MyRedisEvent):
             pass
 
-        self.assertEqual(0, len(self.redis.rds.pubsub_channels()),
-                         'expected no subscribers, but got %s' % self.redis.rds.pubsub_channels())
+        self.assertEqual(
+            0,
+            len(self.redis.rds.pubsub_channels()),
+            "expected no subscribers, but got %s" % self.redis.rds.pubsub_channels(),
+        )
 
         pymq.subscribe(listener)
 
@@ -99,7 +100,7 @@ class RedisPubSubTest(RedisEventbusTestBase, AbstractPubSubTest):
 
         self.assertEqual(1, len(channels))
         # event names are encoded in the channels
-        self.assertTrue(channels[0].endswith('.MyRedisEvent'))
+        self.assertTrue(channels[0].endswith(".MyRedisEvent"))
 
     def test_remove_listener_also_removes_redis_subscription(self):
         def listener1(event: MyRedisEvent):
@@ -119,7 +120,6 @@ class RedisPubSubTest(RedisEventbusTestBase, AbstractPubSubTest):
 
 
 class RedisRpcTest(RedisEventbusTestBase, AbstractRpcTest):
-
     @timeout_decorator.timeout(5)
     def test_channel_expire(self):
         self.bus.rpc_channel_expire = 1
@@ -133,19 +133,19 @@ class RedisRpcTest(RedisEventbusTestBase, AbstractRpcTest):
 
         stub = pymq.stub(remotefn, timeout=1)
         stub.rpc()
-        keys = self.redis.rds.keys('*rpc*')
-        self.assertEqual(0, len(keys), 'Expected no rpc results yet %s' % keys)
+        keys = self.redis.rds.keys("*rpc*")
+        self.assertEqual(0, len(keys), "Expected no rpc results yet %s" % keys)
 
         called.wait()
 
-        keys = self.redis.rds.keys('*rpc*')
+        keys = self.redis.rds.keys("*rpc*")
         self.assertEqual(1, len(keys))
 
         # wait for key to expire
         time.sleep(1.25)
 
-        keys = self.redis.rds.keys('*rpc*')
-        self.assertEqual(0, len(keys), 'key did not expire')
+        keys = self.redis.rds.keys("*rpc*")
+        self.assertEqual(0, len(keys), "key did not expire")
 
 
 class RedisLateInitTest(unittest.TestCase):
@@ -170,14 +170,14 @@ class RedisLateInitTest(unittest.TestCase):
     @timeout_decorator.timeout(5)
     def test_early_expose(self):
         def remote_fn():
-            return 'hello'
+            return "hello"
 
-        pymq.expose(remote_fn, 'remote_fn')
+        pymq.expose(remote_fn, "remote_fn")
 
         self.init()
 
-        stub = pymq.stub('remote_fn')
-        self.assertEqual('hello', stub())
+        stub = pymq.stub("remote_fn")
+        self.assertEqual("hello", stub())
 
     @timeout_decorator.timeout(5)
     def test_early_subscribe(self):
@@ -186,11 +186,11 @@ class RedisLateInitTest(unittest.TestCase):
         def subscriber(arg):
             event.set()
 
-        pymq.subscribe(subscriber, 'my_channel')
+        pymq.subscribe(subscriber, "my_channel")
 
         self.init()
 
-        pymq.publish('hello', 'my_channel')
+        pymq.publish("hello", "my_channel")
 
         self.assertTrue(event.wait(2))
 
@@ -201,23 +201,23 @@ class RedisLateInitTest(unittest.TestCase):
         def subscriber(arg):
             event.set()
 
-        pymq.subscribe(subscriber, 'my_channel')
+        pymq.subscribe(subscriber, "my_channel")
 
         self.init()
 
-        pymq.publish('hello', 'my_channel')
+        pymq.publish("hello", "my_channel")
         self.assertTrue(event.wait(2))
         event.clear()
 
-        pymq.unsubscribe(subscriber, 'my_channel')
+        pymq.unsubscribe(subscriber, "my_channel")
         self.assertFalse(event.wait(1))
 
-        pymq.subscribe(subscriber, 'my_channel')
-        pymq.publish('hello', 'my_channel')
+        pymq.subscribe(subscriber, "my_channel")
+        pymq.publish("hello", "my_channel")
         self.assertTrue(event.wait(2))
 
 
 del RedisEventbusTestBase
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

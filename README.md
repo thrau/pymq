@@ -5,6 +5,7 @@ PyMQ
 [![PyPI Version](https://badge.fury.io/py/pymq.svg)](https://badge.fury.io/py/pymq)
 [![PyPI License](https://img.shields.io/pypi/l/pymq.svg)](https://img.shields.io/pypi/l/pymq.svg)
 [![Coverage Status](https://coveralls.io/repos/github/thrau/pymq/badge.svg?branch=master)](https://coveralls.io/github/thrau/pymq?branch=master)
+[![Codestyle](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 PyMQ is a simple message-oriented middleware library for implementing Python IPC across machine boundaries. The API
 enables different styles of remoting via Pub/Sub, Queues, and synchronous RPC.

@@ -6,7 +6,6 @@ import redislite
 
 
 class TestResource(object):
-
     def setUp(self):
         pass
 
@@ -19,9 +18,9 @@ class RedisResource(TestResource):
     rds: redislite.Redis
 
     def setUp(self):
-        self.tmpfile = tempfile.mktemp('.db', 'pymq_test_')
+        self.tmpfile = tempfile.mktemp(".db", "pymq_test_")
         self.rds = redislite.Redis(self.tmpfile, decode_responses=True)
-        self.rds.get('dummykey')  # run a first command to initiate
+        self.rds.get("dummykey")  # run a first command to initiate
 
     def tearDown(self):
         self.rds.shutdown()

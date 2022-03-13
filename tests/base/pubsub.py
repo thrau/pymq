@@ -31,37 +31,36 @@ class StatefulListener:
         self.invocations = queue.Queue()
 
         pymq.subscribe(self.typed_stateful_event_listener)
-        pymq.subscribe(self.stateful_event_listener, 'some/channel')
+        pymq.subscribe(self.stateful_event_listener, "some/channel")
 
     def typed_stateful_event_listener(self, event: SimpleEvent):
-        self.invocations.put(('typed_stateful_event_listener', event))
+        self.invocations.put(("typed_stateful_event_listener", event))
 
     def stateful_event_listener(self, event):
-        self.invocations.put(('stateful_event_listener', event))
+        self.invocations.put(("stateful_event_listener", event))
 
 
 # noinspection PyUnresolvedReferences
 class AbstractPubSubTest(abc.ABC):
-
     def test_topic(self):
         invocations = queue.Queue()
 
         def topic_listener(value):
             invocations.put(value)
 
-        pymq.topic('some/topic').subscribe(topic_listener)
-        pymq.topic('some/topic').publish('hello')
+        pymq.topic("some/topic").subscribe(topic_listener)
+        pymq.topic("some/topic").publish("hello")
 
-        self.assertEqual('hello', invocations.get(timeout=2))
+        self.assertEqual("hello", invocations.get(timeout=2))
 
     def test_stateful_event_listener(self):
         listener = StatefulListener()
 
-        pymq.publish('hello', channel='some/channel')
+        pymq.publish("hello", channel="some/channel")
 
         title, e = listener.invocations.get(timeout=2)
-        self.assertEqual('stateful_event_listener', title)
-        self.assertEqual('hello', e)
+        self.assertEqual("stateful_event_listener", title)
+        self.assertEqual("hello", e)
 
         self.assertTrue(listener.invocations.empty())
 
@@ -72,7 +71,7 @@ class AbstractPubSubTest(abc.ABC):
         pymq.publish(event)
 
         title, e = listener.invocations.get(timeout=2)
-        self.assertEqual('typed_stateful_event_listener', title)
+        self.assertEqual("typed_stateful_event_listener", title)
         self.assertIsInstance(e, SimpleEvent)
 
         self.assertTrue(listener.invocations.empty())
@@ -93,9 +92,8 @@ class AbstractPubSubTest(abc.ABC):
 
         pymq.publish(SimpleEvent())
 
-        self.assertTrue(called1.wait(0.5), 'listener1 was not called in time')
-        self.assertTrue(called2.wait(0.5), 'listener2 was not called in time')
-
+        self.assertTrue(called1.wait(0.5), "listener1 was not called in time")
+        self.assertTrue(called2.wait(0.5), "listener2 was not called in time")
 
     def test_remove_typed_listener_is_never_called(self):
         called = threading.Event()
@@ -119,12 +117,12 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_on_exposed_listener_with_channel(self):
         invocations = queue.Queue()
 
-        @pymq.subscriber('some/channel')
+        @pymq.subscriber("some/channel")
         def listener(event):
             invocations.put(event)
 
-        pymq.publish('hello', channel='some/channel')
-        self.assertEqual('hello', invocations.get(timeout=1))
+        pymq.publish("hello", channel="some/channel")
+        self.assertEqual("hello", invocations.get(timeout=1))
         self.assertTrue(invocations.empty())
 
     def test_publish_on_exposed_listener_with_type(self):
@@ -143,34 +141,34 @@ class AbstractPubSubTest(abc.ABC):
     def test_publish_on_same_channel(self):
         invocations = queue.Queue()
 
-        @pymq.subscriber('some/channel')
+        @pymq.subscriber("some/channel")
         def listener(event):
             invocations.put(event)
 
-        pymq.publish('hello1', channel='some/channel')
-        pymq.publish('hello2', channel='some/channel')
-        pymq.publish('hello3', channel='some/non-existing/channel')
-        self.assertEqual('hello1', invocations.get(timeout=1))
-        self.assertEqual('hello2', invocations.get(timeout=1))
+        pymq.publish("hello1", channel="some/channel")
+        pymq.publish("hello2", channel="some/channel")
+        pymq.publish("hello3", channel="some/non-existing/channel")
+        self.assertEqual("hello1", invocations.get(timeout=1))
+        self.assertEqual("hello2", invocations.get(timeout=1))
         self.assertTrue(invocations.empty())
 
     def test_publish_on_channel_routes_correctly(self):
         invocations1 = queue.Queue()
         invocations2 = queue.Queue()
 
-        @pymq.subscriber('channel/1')
+        @pymq.subscriber("channel/1")
         def listener1(event):
             invocations1.put(event)
 
-        @pymq.subscriber('channel/2')
+        @pymq.subscriber("channel/2")
         def listener(event):
             invocations2.put(event)
 
-        pymq.publish('event1', channel='channel/1')
-        pymq.publish('event2', channel='channel/2')
+        pymq.publish("event1", channel="channel/1")
+        pymq.publish("event2", channel="channel/2")
 
-        self.assertEqual('event1', invocations1.get(timeout=1))
-        self.assertEqual('event2', invocations2.get(timeout=1))
+        self.assertEqual("event1", invocations1.get(timeout=1))
+        self.assertEqual("event2", invocations2.get(timeout=1))
         self.assertTrue(invocations1.empty())
         self.assertTrue(invocations2.empty())
 
@@ -182,23 +180,23 @@ class AbstractPubSubTest(abc.ABC):
             called.set()
 
         pymq.subscribe(listener)
-        pymq.publish(EventWithPayload(Payload('foobar', 42)))
+        pymq.publish(EventWithPayload(Payload("foobar", 42)))
 
         self.assertTrue(called.wait(2))
         self.assertIsInstance(called.payload, Payload)
-        self.assertEqual('foobar', called.payload.name)
+        self.assertEqual("foobar", called.payload.name)
         self.assertEqual(42, called.payload.value)
 
     def test_publish_pattern(self):
         invocations = queue.Queue()
 
-        @pymq.subscriber('channel/*', True)
+        @pymq.subscriber("channel/*", True)
         def listener1(event):
             invocations.put(event)
 
-        pymq.publish('event1', channel='channel/1')
-        pymq.publish('event2', channel='channel/2')
+        pymq.publish("event1", channel="channel/1")
+        pymq.publish("event2", channel="channel/2")
 
-        self.assertEqual('event1', invocations.get(timeout=1))
-        self.assertEqual('event2', invocations.get(timeout=1))
+        self.assertEqual("event1", invocations.get(timeout=1))
+        self.assertEqual("event2", invocations.get(timeout=1))
         self.assertTrue(invocations.empty())

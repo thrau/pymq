@@ -8,7 +8,6 @@ from tests.base.rpc import AbstractRpcTest
 
 
 class SimpleQueueTest(unittest.TestCase, AbstractQueueTest):
-
     def setUp(self) -> None:
         super().setUp()
         pymq.init(SimpleEventBus)
@@ -19,7 +18,6 @@ class SimpleQueueTest(unittest.TestCase, AbstractQueueTest):
 
 
 class SimpleRpcTest(unittest.TestCase, AbstractRpcTest):
-
     def setUp(self) -> None:
         super().setUp()
         pymq.init(SimpleEventBus)
@@ -30,7 +28,6 @@ class SimpleRpcTest(unittest.TestCase, AbstractRpcTest):
 
 
 class SimplePubSubTest(unittest.TestCase, AbstractPubSubTest):
-
     def setUp(self) -> None:
         super().setUp()
         pymq.init(SimpleEventBus)
@@ -44,5 +41,5 @@ class SimplePubSubTest(unittest.TestCase, AbstractPubSubTest):
         pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

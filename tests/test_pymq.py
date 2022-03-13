@@ -2,7 +2,7 @@ import unittest
 from typing import Callable
 
 import pymq
-from pymq import EventBus, StubMethod, Queue
+from pymq import EventBus, Queue, StubMethod
 
 
 class MockedEventBus(EventBus):
@@ -48,7 +48,7 @@ class MockedEventBus(EventBus):
 
 class PyMQTest(unittest.TestCase):
     def test_queue_on_non_started_bus(self):
-        self.assertRaises(ValueError, pymq.queue, 'foo')
+        self.assertRaises(ValueError, pymq.queue, "foo")
 
     def test_stub_on_non_started_bus(self):
         def fn():
@@ -60,25 +60,25 @@ class PyMQTest(unittest.TestCase):
         self.assertRaises(ValueError, pymq.core.start)
 
     def test_lazy_topic_publish(self):
-        topic = pymq.topic('my_topic')
+        topic = pymq.topic("my_topic")
 
-        self.assertEqual('my_topic', topic.name)
+        self.assertEqual("my_topic", topic.name)
         self.assertFalse(topic.is_pattern)
 
-        self.assertIsNone(topic.publish('does_nothing'))
+        self.assertIsNone(topic.publish("does_nothing"))
 
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
-            topic.publish('some_event')
+            topic.publish("some_event")
 
-            self.assertEqual(1, len(bus.published_events), 'expected one event to be published')
-            self.assertIn(('some_event', 'my_topic'), bus.published_events)
+            self.assertEqual(1, len(bus.published_events), "expected one event to be published")
+            self.assertIn(("some_event", "my_topic"), bus.published_events)
         finally:
             pymq.shutdown()
 
     def test_lazy_topic_subscribe(self):
-        topic = pymq.topic('my_topic')
+        topic = pymq.topic("my_topic")
 
         def callback():
             pass
@@ -88,7 +88,7 @@ class PyMQTest(unittest.TestCase):
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
-            self.assertIn((callback, 'my_topic', False), bus.subscribers)
+            self.assertIn((callback, "my_topic", False), bus.subscribers)
         finally:
             pymq.shutdown()
 
@@ -96,11 +96,11 @@ class PyMQTest(unittest.TestCase):
         def remote_fn():
             pass
 
-        pymq.expose(remote_fn, channel='late_channel')
+        pymq.expose(remote_fn, channel="late_channel")
 
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
-            self.assertIn((remote_fn, 'late_channel'), bus.exposed_methods)
+            self.assertIn((remote_fn, "late_channel"), bus.exposed_methods)
         finally:
             pymq.shutdown()

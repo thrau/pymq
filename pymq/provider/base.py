@@ -3,13 +3,13 @@ import inspect
 import logging
 import uuid
 from collections import defaultdict
-from typing import Dict, Callable, List, Tuple, Union, Any
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 from pymq import json
-from pymq.core import EventBus, Topic, RpcResponse, RpcRequest, StubMethod, Empty
+from pymq.core import Empty, EventBus, RpcRequest, RpcResponse, StubMethod, Topic
 from pymq.exceptions import *
 from pymq.json import DeepDictDecoder
-from pymq.typing import fullname, deep_from_dict, load_class
+from pymq.typing import deep_from_dict, fullname, load_class
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def invoke_function(fn, data: str):
         spec = inspect.getfullargspec(fn)
         args = spec.args
 
-        if hasattr(fn, '__self__'):
+        if hasattr(fn, "__self__"):
             # fn is bound to an object
             event_arg = args[1]
         else:
@@ -38,14 +38,14 @@ def invoke_function(fn, data: str):
 
         if event_arg in spec.annotations:
             t = spec.annotations[event_arg]
-            logger.debug('instantiating new %s with event %s', t, data)
+            logger.debug("instantiating new %s with event %s", t, data)
             # this is sort of an implicit shallow (no nested objects) de-serialization. events classes are expected
             # to have a constructor with kwargs that contain all the data.
             event = json.loads(data, cls=DeepDictDecoder.for_type(t))
         else:
             event = json.loads(data, cls=DeepDictDecoder)
 
-        logger.debug('invoking %s with %s', fn, event)
+        logger.debug("invoking %s with %s", fn, event)
         # event listeners are expected to have exactly one parameter: the event
         fn(event)
     except Exception as e:
@@ -55,30 +55,30 @@ def invoke_function(fn, data: str):
 def inspect_listener(fn) -> str:
     spec = inspect.getfullargspec(fn)
 
-    if hasattr(fn, '__self__'):
+    if hasattr(fn, "__self__"):
         # method is bound to an object
         if len(spec.args) != 2:
-            raise ValueError('Listener functions need exactly one arguments')
+            raise ValueError("Listener functions need exactly one arguments")
 
         if spec.args[1] not in spec.annotations:
-            raise ValueError('Please annotate the event class with an appropriate type')
+            raise ValueError("Please annotate the event class with an appropriate type")
 
         event_type = spec.annotations[spec.args[1]]
         return fullname(event_type)
 
     else:
         if len(spec.args) != 1:
-            raise ValueError('Listener functions need exactly one arguments')
+            raise ValueError("Listener functions need exactly one arguments")
 
         if spec.args[0] not in spec.annotations:
-            raise ValueError('Please annotate the event class with an appropriate type')
+            raise ValueError("Please annotate the event class with an appropriate type")
 
         event_type = spec.annotations[spec.args[0]]
         return fullname(event_type)
 
 
 def get_remote_name(fn):
-    return fn.__module__ + '.' + fn.__qualname__
+    return fn.__module__ + "." + fn.__qualname__
 
 
 class WrapperTopic(Topic):
@@ -102,7 +102,7 @@ class WrapperTopic(Topic):
 
     def publish(self, event) -> int:
         if self.is_pattern:
-            raise ValueError('Cannot publish to pattern topic')
+            raise ValueError("Cannot publish to pattern topic")
         else:
             return self._bus.publish(event, self.name)
 
@@ -111,7 +111,6 @@ class WrapperTopic(Topic):
 
 
 class DefaultStubMethod(StubMethod):
-
     def __init__(self, bus: EventBus, channel: str, spec=None, timeout=None, multi=False) -> None:
         super().__init__()
         self._bus = bus
@@ -151,7 +150,7 @@ class DefaultStubMethod(StubMethod):
         return deep_from_dict(response.result, load_class(response.result_type))
 
     def _next_callback_queue(self):
-        return '__rpc_' + str(uuid.uuid4())
+        return "__rpc_" + str(uuid.uuid4())
 
     def _get_response_queue(self, request: RpcRequest):
         return self._bus.queue(request.response_channel)
@@ -166,7 +165,9 @@ class DefaultStubMethod(StubMethod):
         n = self._bus.publish(request, channel=fn)
 
         if n is None:
-            raise RuntimeError('Implementation error in bus: publish returned None instead of subscriber count')
+            raise RuntimeError(
+                "Implementation error in bus: publish returned None instead of subscriber count"
+            )
         if n == 0:
             raise NoSuchRemoteError(request.fn)
 
@@ -176,12 +177,16 @@ class DefaultStubMethod(StubMethod):
 
             for i in range(n):
                 try:
-                    logger.debug('waiting for response on queue %s, timeout %s,', queue.name, self.timeout)
+                    logger.debug(
+                        "waiting for response on queue %s, timeout %s,", queue.name, self.timeout
+                    )
                     # FIXME: calculate overall remaining timeout
                     response: RpcResponse = queue.get(timeout=self.timeout)
                     results.append(response)
                 except Empty:
-                    response = RpcResponse(fn, ('Gave up waiting after %s' % self.timeout,), 'TimeoutError', True)
+                    response = RpcResponse(
+                        fn, ("Gave up waiting after %s" % self.timeout,), "TimeoutError", True
+                    )
                     results.append(response)
 
                 if not self.multi:
@@ -201,9 +206,9 @@ class DefaultStubMethod(StubMethod):
 
     def __repr__(self):
         if self._spec is None:
-            return '%s()' % self._channel
+            return "%s()" % self._channel
         else:
-            return '%s(%s)' % (self._channel, self._spec)
+            return "%s(%s)" % (self._channel, self._spec)
 
 
 class DefaultSkeletonMethod:
@@ -225,7 +230,7 @@ class DefaultSkeletonMethod:
             result = self._invoke(request)
             response = RpcResponse(request.fn, result, fullname(result))
         except Exception as e:
-            logger.exception('Exception while invoking %s', request)
+            logger.exception("Exception while invoking %s", request)
             response = RpcResponse(request.fn, e, fullname(e), error=True)
 
         self._queue_response(request, response)
@@ -238,14 +243,17 @@ class DefaultSkeletonMethod:
 
         if not spec.args:
             if request.args:
-                raise TypeError('%s takes 0 positional arguments but %d were given' % (request.fn, len(request.args)))
+                raise TypeError(
+                    "%s takes 0 positional arguments but %d were given"
+                    % (request.fn, len(request.args))
+                )
         else:
-            if spec.args[0] == 'self':
-                spec.args.remove('self')
+            if spec.args[0] == "self":
+                spec.args.remove("self")
 
         args = list()
 
-        logger.debug('converting args %s to spec %s', request.args, spec)
+        logger.debug("converting args %s to spec %s", request.args, spec)
 
         for i in range(min(len(request.args), len(spec.args))):
             name = spec.args[i]
@@ -310,7 +318,7 @@ class AbstractEventBus(EventBus, abc.ABC):
             channel = str(fn)
             spec = None
         else:
-            raise TypeError('cannot create stub for fn type %s' % type(fn))
+            raise TypeError("cannot create stub for fn type %s" % type(fn))
 
         return self._create_stub_method(channel, spec, timeout, multi)
 
@@ -319,7 +327,7 @@ class AbstractEventBus(EventBus, abc.ABC):
             channel = get_remote_name(fn)
 
         if channel in self._remote_fns:
-            raise ValueError('Function on channel %s already exposed' % channel)
+            raise ValueError("Function on channel %s already exposed" % channel)
 
         logger.debug('exposing at channel "%s" the function %s', channel, fn)
 
@@ -334,7 +342,7 @@ class AbstractEventBus(EventBus, abc.ABC):
         elif isinstance(fn, str):
             channel = fn
         else:
-            raise TypeError('cannot create stub for fn type %s' % type(fn))
+            raise TypeError("cannot create stub for fn type %s" % type(fn))
 
         if channel not in self._remote_fns:
             return

@@ -43,12 +43,12 @@ class SimpleEventBus(AbstractEventBus):
 
         subscribers = 0
         for fn in self._subscribers[key]:
-            logger.debug('dispatching %s to %s', event, fn)
+            logger.debug("dispatching %s to %s", event, fn)
             try:
                 subscribers += 1
                 self.dispatcher.submit(fn, event)
             except Exception as e:
-                logger.exception('error while executing callback', e)
+                logger.exception("error while executing callback", e)
 
         return subscribers
 

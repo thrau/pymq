@@ -3,18 +3,21 @@ import types
 import typing
 from pydoc import locate
 
-if hasattr(typing, '_GenericAlias'):
+if hasattr(typing, "_GenericAlias"):
+
     def _is_generic(cls):
         return isinstance(cls, typing._GenericAlias)
 
 else:
-    if hasattr(typing, '_Union'):
+    if hasattr(typing, "_Union"):
+
         def _is_generic(cls):
             return isinstance(cls, typing.GenericMeta)
 
     else:
+
         def _is_generic(cls):
-            raise RuntimeError('Need python>=3.6')
+            raise RuntimeError("Need python>=3.6")
 
 
 def is_generic(cls):
@@ -56,7 +59,7 @@ def fullname(o):
     # in Python 3.
 
     if isinstance(o, (types.MethodType, types.FunctionType)):
-        return o.__module__ + '.' + o.__qualname__
+        return o.__module__ + "." + o.__qualname__
 
     if isinstance(o, type):
         o = o
@@ -67,7 +70,7 @@ def fullname(o):
     if module is None or module == str.__class__.__module__:
         return o.__name__  # Avoid reporting __builtin__
     else:
-        return module + '.' + o.__name__
+        return module + "." + o.__name__
 
 
 def deep_from_dict(doc, cls):
@@ -81,7 +84,7 @@ def deep_from_dict(doc, cls):
         return doc
 
     if cls == type:
-        raise TypeError('Deserializing types is not safe')
+        raise TypeError("Deserializing types is not safe")
 
     if is_generic(cls):
         container_class = cls.__origin__
@@ -100,9 +103,11 @@ def deep_from_dict(doc, cls):
         if issubclass(container_class, dict):
             key_type = cls.__args__[0]
             value_type = cls.__args__[1]
-            return {deep_from_dict(k, key_type): deep_from_dict(v, value_type) for k, v in doc.items()}
+            return {
+                deep_from_dict(k, key_type): deep_from_dict(v, value_type) for k, v in doc.items()
+            }
 
-        raise TypeError('Unknown generic class %s' % cls)
+        raise TypeError("Unknown generic class %s" % cls)
 
     if issubclass(cls, Exception):
         if isinstance(doc, (list, tuple)):
@@ -163,7 +168,7 @@ def deep_to_dict(obj):
     if isinstance(obj, Exception):
         return deep_to_dict(obj.args)
 
-    if hasattr(obj, '__dict__'):
+    if hasattr(obj, "__dict__"):
         return deep_to_dict(obj.__dict__)
 
-    raise TypeError('Unhandled type %s' % type(obj))
+    raise TypeError("Unhandled type %s" % type(obj))

@@ -2,7 +2,7 @@ import abc
 import logging
 import threading
 from queue import Empty, Full
-from typing import Callable, Union, List, Any, Optional, Tuple, NamedTuple
+from typing import Any, Callable, List, NamedTuple, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +11,6 @@ Full = Full
 
 
 class Queue(abc.ABC):
-
     @property
     def name(self):
         raise NotImplementedError
@@ -42,7 +41,6 @@ class Queue(abc.ABC):
 
 
 class Topic(abc.ABC):
-
     @property
     def name(self) -> str:
         raise NotImplementedError
@@ -73,7 +71,6 @@ class RpcResponse(NamedTuple):
 
 
 class StubMethod:
-
     def __call__(self, *args, **kwargs):
         raise NotImplementedError
 
@@ -82,7 +79,6 @@ class StubMethod:
 
 
 class EventBus(abc.ABC):
-
     def run(self):
         raise NotImplementedError
 
@@ -141,7 +137,7 @@ class _WrapperTopic(Topic):
 
     def publish(self, event) -> int:
         if self.is_pattern:
-            raise ValueError('Cannot publish to pattern topic')
+            raise ValueError("Cannot publish to pattern topic")
         else:
             return publish(event, self.name)
 
@@ -199,7 +195,7 @@ def init(factory, start_bus=True):
 
 def publish(event, channel=None):
     if _bus is None:
-        logger.error('Event bus was not initialized, cannot publish message. Please run pymq.init')
+        logger.error("Event bus was not initialized, cannot publish message. Please run pymq.init")
         return
 
     return _bus.publish(event, channel)
@@ -207,8 +203,8 @@ def publish(event, channel=None):
 
 def queue(name) -> Queue:
     if _bus is None:
-        logger.error('Event bus was not initialized, cannot get queue. Please run pymq.init')
-        raise ValueError('Bus not set yet')
+        logger.error("Event bus was not initialized, cannot get queue. Please run pymq.init")
+        raise ValueError("Bus not set yet")
 
     return _bus.queue(name)
 
@@ -222,8 +218,8 @@ def topic(name, pattern=False):
 
 def stub(fn, timeout=None, multi=False) -> StubMethod:
     if _bus is None:
-        logger.error('Event bus was not initialized, cannot get stub. Please run pymq.init')
-        raise ValueError('Bus not set yet')
+        logger.error("Event bus was not initialized, cannot get stub. Please run pymq.init")
+        raise ValueError("Bus not set yet")
 
     return _bus.stub(fn, timeout, multi)
 
@@ -239,8 +235,8 @@ def expose(fn, channel=None):
 def unexpose(fn):
     if _bus is None:
         # FIXME: will not remote uninitialized skeletons
-        logger.error('Event bus was not initialized, cannot unexpose method. Please run pymq.init')
-        raise ValueError('Bus not set yet')
+        logger.error("Event bus was not initialized, cannot unexpose method. Please run pymq.init")
+        raise ValueError("Bus not set yet")
 
     return _bus.unexpose(fn)
 
@@ -248,12 +244,12 @@ def unexpose(fn):
 def start():
     with _lock:
         if _bus is None:
-            raise ValueError('Bus not set yet')
+            raise ValueError("Bus not set yet")
 
-        logger.debug('starting global event bus')
+        logger.debug("starting global event bus")
         global _runner
         if _runner is None:
-            _runner = threading.Thread(target=_bus.run, name='eventbus-runner')
+            _runner = threading.Thread(target=_bus.run, name="eventbus-runner")
             _runner.daemon = True
             _runner.start()
 
@@ -263,11 +259,11 @@ def shutdown():
     with _lock:
         if _runner is None:
             return
-        logger.debug('stopping global event bus')
+        logger.debug("stopping global event bus")
         if _bus is not None:
             _bus.close()
         _runner.join()
-        logger.debug('global event bus stopped')
+        logger.debug("global event bus stopped")
         _runner = None
         _bus = None
         _uninitialized_subscribers.clear()

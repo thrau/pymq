@@ -1,13 +1,18 @@
 import logging
 import os
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import Callable, NamedTuple, List
+from typing import Callable, List, NamedTuple
 
 import posix_ipc as ipc
 
 import pymq.json as json
-from pymq.core import Queue, Empty, Full
-from pymq.provider.base import AbstractEventBus, invoke_function, DefaultStubMethod, DefaultSkeletonMethod
+from pymq.core import Empty, Full, Queue
+from pymq.provider.base import (
+    AbstractEventBus,
+    DefaultSkeletonMethod,
+    DefaultStubMethod,
+    invoke_function,
+)
 
 EVENT_PUBSUB = 0
 EVENT_RPC_RESPONSE = 1
@@ -37,7 +42,7 @@ class IpcQueue(Queue):
     def __init__(self, name: str, mqname: str = None) -> None:
         super().__init__()
         self._name = name
-        self._mqname = mqname or '/%s' % (name.lstrip('/'))
+        self._mqname = mqname or "/%s" % (name.lstrip("/"))
         self._mq = None
 
     @property
@@ -71,14 +76,14 @@ class IpcQueue(Queue):
             timeout = 0
 
         data = _serialize(item)
-        logger.debug('putting into %s the item %s as data %s', self._mqname, item, data)
+        logger.debug("putting into %s the item %s as data %s", self._mqname, item, data)
         try:
             return self._get_mq().send(data, timeout=timeout)
         except ipc.BusyError:
             raise Full
 
     def exists(self):
-        return os.path.exists('/dev/mqueue%s' % self._mqname)
+        return os.path.exists("/dev/mqueue%s" % self._mqname)
 
     def close(self):
         if self._mq is not None:
@@ -86,11 +91,11 @@ class IpcQueue(Queue):
             self._mq = None
 
     def free(self):
-        logger.debug('unlinking queue %s', self._mqname)
+        logger.debug("unlinking queue %s", self._mqname)
         try:
             ipc.unlink_message_queue(self._mqname)
         except ipc.ExistentialError:
-            logger.debug('queue %s did not exist', self._mqname)
+            logger.debug("queue %s did not exist", self._mqname)
 
     def _get_mq(self):
         if not self._mq:
@@ -99,7 +104,7 @@ class IpcQueue(Queue):
 
     def _open(self):
         if self._mq is None:
-            logger.debug('opening message queue %s', self._mqname)
+            logger.debug("opening message queue %s", self._mqname)
             self._mq = ipc.MessageQueue(name=self._mqname, flags=ipc.O_CREAT)
 
 
@@ -115,7 +120,6 @@ class IpcStubMethod(DefaultStubMethod):
 
 
 class IpcSkeletonMethod(DefaultSkeletonMethod):
-
     def _queue_response(self, request, response):
         queue = self._bus.queue(request.response_channel)
         try:
@@ -133,13 +137,14 @@ class RoutingTable:
     """
     Uses a file tree to manage a pub/sub routing table for IpcEventBus.
     """
-    bus: 'IpcEventBus'
-    ramdisk = '/run/shm'
 
-    def __init__(self, bus: 'IpcEventBus') -> None:
+    bus: "IpcEventBus"
+    ramdisk = "/run/shm"
+
+    def __init__(self, bus: "IpcEventBus") -> None:
         super().__init__()
-        self.subscriber_queue = bus.event_loop_name.lstrip('/')
-        self.tree = os.path.join(self.ramdisk, bus.namespace, 'subscribers')
+        self.subscriber_queue = bus.event_loop_name.lstrip("/")
+        self.tree = os.path.join(self.ramdisk, bus.namespace, "subscribers")
         self.subscriptions = set()
 
         # prepare tree
@@ -151,17 +156,20 @@ class RoutingTable:
         if not os.path.exists(topic_path):
             return []
 
-        return [path.name for path in os.scandir(topic_path)
-                if path.is_symlink() and path.is_file(follow_symlinks=True)]
+        return [
+            path.name
+            for path in os.scandir(topic_path)
+            if path.is_symlink() and path.is_file(follow_symlinks=True)
+        ]
 
     def subscribe(self, channel: str):
-        logger.debug('subscribing %s to %s', self.subscriber_queue, channel)
+        logger.debug("subscribing %s to %s", self.subscriber_queue, channel)
 
         self.subscriptions.add(channel)
         topic_path = os.path.join(self.tree, channel)
-        mq_path = os.path.join('/dev/mqueue', self.subscriber_queue)
+        mq_path = os.path.join("/dev/mqueue", self.subscriber_queue)
 
-        logger.debug(f'mkdir -p {topic_path}')
+        logger.debug(f"mkdir -p {topic_path}")
         os.makedirs(topic_path, exist_ok=True)
 
         src = mq_path
@@ -171,14 +179,14 @@ class RoutingTable:
             return
 
         try:
-            logger.debug(f'ln -s {src} {dst}')
+            logger.debug(f"ln -s {src} {dst}")
             os.symlink(src, dst)
         except FileExistsError:
-            logger.warning('Race condition on creating subscriber %s', src)
+            logger.warning("Race condition on creating subscriber %s", src)
 
     def unsubscribe(self, channel: str):
         # check if subscriber callbacks are empty for this topic, if so, remove the queue link
-        logger.debug('unsubscribing from %s', channel)
+        logger.debug("unsubscribing from %s", channel)
 
         topic_path = os.path.join(self.tree, channel)
         link_path = os.path.join(topic_path, self.subscriber_queue)
@@ -189,25 +197,25 @@ class RoutingTable:
             pass
 
         try:
-            logger.debug('unlink %s', link_path)
+            logger.debug("unlink %s", link_path)
             os.unlink(link_path)
         except FileNotFoundError:
-            logger.debug('tried to unlink %s, but did not exist', link_path)
+            logger.debug("tried to unlink %s, but did not exist", link_path)
 
     def clear(self):
-        logger.debug('removing subscriptions')
+        logger.debug("removing subscriptions")
         channels = list(self.subscriptions)
         for channel in channels:
             try:
                 self.unsubscribe(channel)
             except Exception as e:
-                logger.error('Error while unsubscribing from %s: %s', channel, e)
+                logger.error("Error while unsubscribing from %s: %s", channel, e)
 
 
 class IpcEventBus(AbstractEventBus):
-    POISON = '__STOP_EVENTBUS__'
+    POISON = "__STOP_EVENTBUS__"
 
-    def __init__(self, namespace='global', dispatcher=None) -> None:
+    def __init__(self, namespace="global", dispatcher=None) -> None:
         super().__init__()
         self.namespace = namespace
         self._closed = False
@@ -217,10 +225,10 @@ class IpcEventBus(AbstractEventBus):
 
     @property
     def event_loop_name(self):
-        return self.to_mqueue_name('$%d' % os.getpid())
+        return self.to_mqueue_name("$%d" % os.getpid())
 
     def to_mqueue_name(self, name):
-        return '/pymq_%s_%s' % (self.namespace, name)
+        return "/pymq_%s_%s" % (self.namespace, name)
 
     def run(self):
         # TODO: locking
@@ -229,30 +237,30 @@ class IpcEventBus(AbstractEventBus):
             self.dispatcher = ThreadPoolExecutor(1)
 
         # prepare event loop queue, use pid as mq event loop name
-        event_loop = IpcQueue(name='eventloop_%s' % self.namespace, mqname=self.event_loop_name)
+        event_loop = IpcQueue(name="eventloop_%s" % self.namespace, mqname=self.event_loop_name)
         self.event_loop = event_loop
 
         try:
             while not self._closed:
-                logger.debug('waiting for next event loop message')
+                logger.debug("waiting for next event loop message")
                 msg = event_loop.get()
                 if msg == self.POISON:
-                    logger.debug('event loop received poison, breaking loop')
+                    logger.debug("event loop received poison, breaking loop")
                     break
 
-                logger.debug('event loop got message %s', msg)
+                logger.debug("event loop got message %s", msg)
                 event_type, channel, payload = msg
 
                 if event_type is EVENT_PUBSUB:
-                    logger.info('got pubsub event on channel %s', channel)
+                    logger.info("got pubsub event on channel %s", channel)
                     key = (channel, False)
 
                     if key not in self._subscribers:
-                        logger.warning('inconsistent state: no listeners for %s', key)
+                        logger.warning("inconsistent state: no listeners for %s", key)
                         continue
 
                     for fn in self._subscribers[key]:
-                        logger.debug('dispatching %s to %s', payload, fn)
+                        logger.debug("dispatching %s to %s", payload, fn)
                         self.dispatcher.submit(IpcEventBus._call_listener, fn, payload)
                 else:
                     logger.error("Unknown event type %s", event_type)
@@ -263,13 +271,13 @@ class IpcEventBus(AbstractEventBus):
             self._cleanup()
 
     def _cleanup(self):
-        logger.debug('shutting down dispatcher')
+        logger.debug("shutting down dispatcher")
         self.dispatcher.shutdown()
 
-        logger.debug('unlinking event loop message queue')
+        logger.debug("unlinking event loop message queue")
         self.event_loop.free()
 
-        logger.debug('clearing routing table')
+        logger.debug("clearing routing table")
         self.rtable.clear()
 
     def close(self):
@@ -291,8 +299,8 @@ class IpcEventBus(AbstractEventBus):
         if not subscribers:
             return 0
 
-        queues = ['/' + subscriber for subscriber in subscribers]
-        logger.debug('publishing event in %s into %s', channel, queues)
+        queues = ["/" + subscriber for subscriber in subscribers]
+        logger.debug("publishing event in %s into %s", channel, queues)
         for queue in queues:
             q = IpcQueue(queue)
             try:
