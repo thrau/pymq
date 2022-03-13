@@ -1,12 +1,14 @@
-import unittest
 from typing import Callable
+
+import pytest
 
 import pymq
 from pymq import EventBus, Queue, StubMethod
 
 
 class MockedEventBus(EventBus):
-    # TODO: replace with unittest mocks
+
+    # TODO: replace with mocks
 
     published_events: list
     subscribers: list
@@ -21,10 +23,10 @@ class MockedEventBus(EventBus):
     def publish(self, event, channel=None):
         self.published_events.append((event, channel))
 
-    def subscribe(self, callback: Callable, channel, pattern=False):
+    def subscribe(self, callback: Callable, channel=None, pattern=False):
         self.subscribers.append((callback, channel, pattern))
 
-    def unsubscribe(self, callback: Callable, channel, pattern=False):
+    def unsubscribe(self, callback: Callable, channel=None, pattern=False):
         pass
 
     def queue(self, name: str) -> Queue:
@@ -39,6 +41,9 @@ class MockedEventBus(EventBus):
     def expose(self, fn, channel=None):
         self.exposed_methods.append((fn, channel))
 
+    def unexpose(self, fn):
+        pass
+
     def run(self):
         pass
 
@@ -46,34 +51,36 @@ class MockedEventBus(EventBus):
         pass
 
 
-class PyMQTest(unittest.TestCase):
+class TestPymqStub:
     def test_queue_on_non_started_bus(self):
-        self.assertRaises(ValueError, pymq.queue, "foo")
+        with pytest.raises(ValueError):
+            pymq.queue("foo")
 
     def test_stub_on_non_started_bus(self):
         def fn():
             pass
 
-        self.assertRaises(ValueError, pymq.stub, fn)
+        with pytest.raises(ValueError):
+            pymq.stub(fn)
 
     def test_start_without_init(self):
-        self.assertRaises(ValueError, pymq.core.start)
+        with pytest.raises(ValueError):
+            pymq.core.start()
 
     def test_lazy_topic_publish(self):
         topic = pymq.topic("my_topic")
 
-        self.assertEqual("my_topic", topic.name)
-        self.assertFalse(topic.is_pattern)
-
-        self.assertIsNone(topic.publish("does_nothing"))
+        assert "my_topic" == topic.name
+        assert not topic.is_pattern
+        assert topic.publish("does_nothing") is None
 
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
             topic.publish("some_event")
 
-            self.assertEqual(1, len(bus.published_events), "expected one event to be published")
-            self.assertIn(("some_event", "my_topic"), bus.published_events)
+            assert 1 == len(bus.published_events), "expected one event to be published"
+            assert ("some_event", "my_topic") in bus.published_events
         finally:
             pymq.shutdown()
 
@@ -83,12 +90,12 @@ class PyMQTest(unittest.TestCase):
         def callback():
             pass
 
-        self.assertIsNone(topic.subscribe(callback))
+        assert topic.subscribe(callback) is None
 
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
-            self.assertIn((callback, "my_topic", False), bus.subscribers)
+            assert (callback, "my_topic", False) in bus.subscribers
         finally:
             pymq.shutdown()
 
@@ -101,6 +108,6 @@ class PyMQTest(unittest.TestCase):
         bus: MockedEventBus = pymq.init(MockedEventBus)
 
         try:
-            self.assertIn((remote_fn, "late_channel"), bus.exposed_methods)
+            assert (remote_fn, "late_channel") in bus.exposed_methods
         finally:
             pymq.shutdown()

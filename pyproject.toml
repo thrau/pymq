@@ -21,7 +21,7 @@ source = [
 [tool.coverage.report]
 exclude_lines = [
     "if __name__ == .__main__.:",
-    "raise NotImplemented.",
+    "raise NotImplementedError",
     "return NotImplemented",
     "def __repr__",
 ]
