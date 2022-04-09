@@ -3,6 +3,7 @@ PyMQ
 
 [![Build Status](https://github.com/thrau/pymq/actions/workflows/test.yml/badge.svg)](https://github.com/thrau/pymq/actions/workflows/test.yml)
 [![PyPI Version](https://badge.fury.io/py/pymq.svg)](https://badge.fury.io/py/pymq)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/pymq)](https://pypistats.org/packages/pymq)
 [![PyPI License](https://img.shields.io/pypi/l/pymq.svg)](https://img.shields.io/pypi/l/pymq.svg)
 [![Coverage Status](https://coveralls.io/repos/github/thrau/pymq/badge.svg?branch=master)](https://coveralls.io/github/thrau/pymq?branch=master)
 [![Codestyle](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
