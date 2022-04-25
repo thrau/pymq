@@ -2,35 +2,37 @@ import abc
 import logging
 import threading
 from queue import Empty, Full
-from typing import Any, Callable, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Generic, List, NamedTuple, Optional, Tuple, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
 Empty = Empty
 Full = Full
 
+QItem = TypeVar("QItem")
 
-class Queue(abc.ABC):
+
+class Queue(abc.ABC, Generic[QItem]):
     @property
-    def name(self):
+    def name(self) -> str:
         raise NotImplementedError
 
-    def get(self, block=True, timeout=None):
+    def get(self, block: bool = True, timeout: float = None) -> QItem:
         raise NotImplementedError
 
-    def put(self, item, block=True, timeout=None):
+    def put(self, item: QItem, block: bool = True, timeout: float = None):
         raise NotImplementedError
 
-    def qsize(self):
+    def qsize(self) -> int:
         raise NotImplementedError
 
-    def empty(self):
+    def empty(self) -> bool:
         return self.qsize() == 0
 
-    def put_nowait(self, item):
+    def put_nowait(self, item: QItem):
         return self.put(item, block=False)
 
-    def get_nowait(self):
+    def get_nowait(self) -> QItem:
         return self.get(block=False)
 
     def close(self):

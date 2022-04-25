@@ -7,7 +7,7 @@ import pytest
 import pymq as pymq
 
 
-@pytest.fixture(params=["init_simple", "init_redis", "init_ipc"])
+@pytest.fixture(params=["init_simple", "init_redis", "init_ipc", "init_aws"])
 def pymq_init(request):
     """parameterized pymq_init fixture (a fixture that, when called, initializes pymq)"""
 
@@ -160,6 +160,40 @@ def init_redis(redislite):
         _bus_container[0].close()
 
     redislite.flushall()
+
+
+@pytest.fixture()
+def pymq_aws(init_aws):
+    init_aws()
+    yield pymq
+
+
+@pytest.fixture()
+def init_aws():
+    from pymq.provider.aws import AwsEventBus, LocalstackConfig
+
+    config = LocalstackConfig()
+
+    _bus_container = []
+    _invalid = False
+
+    def _init() -> AwsEventBus:
+        if _bus_container:
+            raise ValueError("already called")
+        if _invalid:
+            raise ValueError("expired init function")
+
+        bus = pymq.init(config)
+        _bus_container.append(bus)
+        return bus
+
+    yield _init
+
+    _invalid = True
+
+    if _bus_container:
+        pymq.shutdown()
+        _bus_container[0].close()
 
 
 @pytest.fixture()

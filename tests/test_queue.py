@@ -91,6 +91,10 @@ class TestQueue:
         assert 1 == q1.qsize()
         assert 0 == q2.qsize()
 
+        q1.get()
+        assert 0 == q1.qsize()
+        assert 0 == q2.qsize()
+
     def test_queue_primitive_types(self, bus):
         q = bus.queue("test_queue")
 
