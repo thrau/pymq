@@ -3,6 +3,7 @@ import shutil
 import sys
 
 import pytest
+from localstack.utils.bootstrap import LocalstackContainer, LocalstackContainerServer
 
 import pymq as pymq
 
@@ -163,16 +164,25 @@ def init_redis(redislite):
 
 
 @pytest.fixture()
+def pymq_redis(init_redis):
+    init_redis()
+    yield pymq
+
+
+# aws provider through localstack
+
+
+@pytest.fixture()
 def pymq_aws(init_aws):
     init_aws()
     yield pymq
 
 
 @pytest.fixture()
-def init_aws():
+def init_aws(localstack):
     from pymq.provider.aws import AwsEventBus, LocalstackConfig
 
-    config = LocalstackConfig()
+    config = LocalstackConfig(endpoint_url=localstack.url)
 
     _bus_container = []
     _invalid = False
@@ -196,7 +206,12 @@ def init_aws():
         _bus_container[0].close()
 
 
-@pytest.fixture()
-def pymq_redis(init_redis):
-    init_redis()
-    yield pymq
+@pytest.fixture(scope="class")
+def localstack():
+    container = LocalstackContainer()
+    container.ports.add(4566, 4566)
+    ls = LocalstackContainerServer(container)
+    ls.start()
+    ls.wait_is_up()
+    yield ls
+    ls.shutdown()
