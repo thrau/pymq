@@ -80,7 +80,6 @@ class RpcHolder:
 
 
 # noinspection PyUnresolvedReferences
-@pytest.mark.xfail_provider("init_aws")
 class TestRpc:
     @pytest.mark.timeout(60)
     def test_assert_bus(self, bus):
@@ -279,7 +278,7 @@ class TestRpc:
         logger.debug("calling stub for myfn")
         assert 2 == stub()
 
-    @pytest.mark.timeout(5)
+    @pytest.mark.timeout(60)
     def test_expose_before_init(self, pymq_init):
         def remote_fn():
             return "hello"

@@ -191,10 +191,8 @@ class TestPubSub:
         assert "foobar" == called.payload.name
         assert 42 == called.payload.value
 
+    @pytest.mark.xfail_provider("init_ipc", "init_simple", "init_aws")
     def test_publish_pattern(self, bus):
-        if bus.type in [IpcEventBus, SimpleEventBus, AwsEventBus]:
-            pytest.xfail(reason="pattern publish not implemented for bus type")
-
         invocations = queue.Queue()
 
         @pymq.subscriber("channel/*", True)
