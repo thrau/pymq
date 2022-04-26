@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import sys
@@ -7,6 +8,26 @@ from localstack.utils.bootstrap import LocalstackContainer, LocalstackContainerS
 
 import pymq as pymq
 
+LOG = logging.getLogger(__name__)
+
+
+def pytest_runtest_setup(item):
+    # handle xfail_provider marker
+
+    try:
+        init_fn = item.callspec.params.get("pymq_init")
+    except AttributeError:
+        # functions without arguments don't have callspecs
+        return
+
+    if not init_fn:
+        return
+
+    for marker in item.iter_markers():
+        if marker.name == "xfail_provider":
+            if init_fn in marker.args:
+                pytest.xfail("text expected to fail for %s" % init_fn)
+
 
 @pytest.fixture(params=["init_simple", "init_redis", "init_ipc", "init_aws"])
 def pymq_init(request):
@@ -14,6 +35,10 @@ def pymq_init(request):
 
     if request.param == "init_ipc" and sys.platform != "linux":
         pytest.skip("IPC provider only works for linux")
+        return None
+
+    if request.param == "init_aws" and not shutil.which("docker"):
+        pytest.skip("Cannot test AWS provider without docker (needed to run localstack)")
         return None
 
     return request.getfixturevalue(request.param)

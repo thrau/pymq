@@ -6,6 +6,7 @@ from typing import NamedTuple
 import pytest
 
 import pymq
+from pymq.provider.aws import AwsEventBus
 from pymq.provider.ipc import IpcEventBus
 from pymq.provider.simple import SimpleEventBus
 
@@ -191,7 +192,7 @@ class TestPubSub:
         assert 42 == called.payload.value
 
     def test_publish_pattern(self, bus):
-        if bus.type in [IpcEventBus, SimpleEventBus]:
+        if bus.type in [IpcEventBus, SimpleEventBus, AwsEventBus]:
             pytest.xfail(reason="pattern publish not implemented for bus type")
 
         invocations = queue.Queue()
@@ -209,7 +210,7 @@ class TestPubSub:
 
 
 class TestInitSubscribers:
-    @pytest.mark.timeout(5)
+    @pytest.mark.timeout(60)
     def test_subscribe_before_init(self, pymq_init):
         event = threading.Event()
 
@@ -222,7 +223,7 @@ class TestInitSubscribers:
 
         assert event.wait(2)
 
-    @pytest.mark.timeout(5)
+    @pytest.mark.timeout(60)
     def test_publish_subscribe_before_init(self, pymq_init):
         invocations = queue.Queue()
 
@@ -237,7 +238,7 @@ class TestInitSubscribers:
         assert "hello" == invocations.get(timeout=1)
         assert 0 == invocations.qsize()
 
-    @pytest.mark.timeout(5)
+    @pytest.mark.timeout(60)
     def test_unsubscribe_before_init(self, pymq_init):
         invocations = queue.Queue()
 
@@ -252,7 +253,7 @@ class TestInitSubscribers:
         with pytest.raises(queue.Empty):
             invocations.get(timeout=0.25)
 
-    @pytest.mark.timeout(10)
+    @pytest.mark.timeout(60)
     def test_subscribe_before_init_and_unsubscribe(self, pymq_init):
         event = threading.Event()
 

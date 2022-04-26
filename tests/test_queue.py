@@ -95,6 +95,22 @@ class TestQueue:
         assert 0 == q1.qsize()
         assert 0 == q2.qsize()
 
+    @pytest.mark.timeout(2)
+    def test_get_queue_size_on_same_queue(self, bus):
+        q1 = bus.queue("same_test_queue")
+        q2 = bus.queue("same_test_queue")
+
+        assert 0 == q1.qsize()
+        assert 0 == q2.qsize()
+
+        q1.put("elem1")
+        assert 1 == q1.qsize()
+        assert 1 == q2.qsize()
+
+        assert "elem1" == q2.get()
+        assert 0 == q1.qsize()
+        assert 0 == q2.qsize()
+
     def test_queue_primitive_types(self, bus):
         q = bus.queue("test_queue")
 

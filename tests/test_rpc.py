@@ -80,7 +80,13 @@ class RpcHolder:
 
 
 # noinspection PyUnresolvedReferences
+@pytest.mark.xfail_provider("init_aws")
 class TestRpc:
+    @pytest.mark.timeout(60)
+    def test_assert_bus(self, bus):
+        # gives localstack a chance to start
+        assert bus
+
     @pytest.mark.timeout(2)
     def test_marshall_rpc_request(self, bus):
         request = pymq.RpcRequest("some_function", "callback_queue", ("simple_arg",))
