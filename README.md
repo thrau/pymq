@@ -144,7 +144,7 @@ Providers
 Compatibility
 -------------
 
-Python 3.6+
+Python 3.8+
 
 Known Limitations
 -----------------
