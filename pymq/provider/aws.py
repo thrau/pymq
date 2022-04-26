@@ -17,7 +17,7 @@ from botocore.utils import ArnParser
 
 from pymq.core import Empty, QItem, Queue
 from pymq.json import DeepDictDecoder, DeepDictEncoder
-from pymq.provider.base import AbstractEventBus, WrapperTopic, invoke_function
+from pymq.provider.base import AbstractEventBus, DefaultStubMethod, WrapperTopic, invoke_function
 
 if t.TYPE_CHECKING:
     from mypy_boto3_sns import SNSClient
@@ -58,6 +58,8 @@ def encode_topic_name(original: str) -> str:
     encoded = encoded.replace("/", "_FWS_")
     encoded = encoded.replace(".", "_DOT_")
     encoded = encoded.replace(":", "_COL_")
+    encoded = encoded.replace("<", "_LT_")
+    encoded = encoded.replace(">", "_GT_")
     return encoded
 
 
@@ -73,6 +75,8 @@ def decode_topic_name(encoded: str) -> str:
     decoded = decoded.replace("_FWS_", "/")
     decoded = decoded.replace("_DOT_", ".")
     decoded = decoded.replace("_COL_", ":")
+    decoded = decoded.replace("_LT_", "<")
+    decoded = decoded.replace("_GT_", ">")
     return decoded
 
 
@@ -266,6 +270,12 @@ class Subscription(NamedTuple):
     subscription_arn: str
 
 
+class _StubMethod(DefaultStubMethod):
+    def _finalize_response_queue(self, queue: AwsQueue):
+        queue.close()
+        queue.free()
+
+
 class AwsEventBus(AbstractEventBus):
     def __init__(
         self, namespace="global", sqs: "SQSClient" = None, sns: "SNSClient" = None
@@ -398,6 +408,7 @@ class AwsEventBus(AbstractEventBus):
             url = self.sqs.create_queue(QueueName=name)["QueueUrl"]
             logger.debug("created queue %s", url)
         except ClientError as e:
+            # should never happen
             if e.response["Error"]["Code"] == "QueueAlreadyExists":
                 url = self.sqs.get_queue_url(QueueName=name)["QueueUrl"]
                 logger.debug("re-using existing queue %s", url)
@@ -406,8 +417,19 @@ class AwsEventBus(AbstractEventBus):
 
         return url
 
-    def _publish(self, event: t.Any, channel: str) -> int:
+    def _publish(self, event: t.Any, channel: str) -> t.Optional[int]:
         arn = self.topic(channel).arn
+
+        # this is all a bit wonky and can lead to inconsistent state
+
+        def _get_subscriptions() -> int:
+            subs = self.sns.list_subscriptions_by_topic(TopicArn=arn).get("Subscriptions", [])
+            return len(subs)
+
+        if _get_subscriptions() == 0:
+            # this is needed to raise the "NoSuchRemote" exception (to indicate that no one is listening)
+            logger.debug("no subscriptions on %s", arn)
+            return 0
 
         response = self.sns.publish(Message=serialize(event), TopicArn=arn)
         logger.debug("publish response: %s", response)
@@ -446,3 +468,6 @@ class AwsEventBus(AbstractEventBus):
             self.sns.unsubscribe(SubscriptionArn=sub.subscription_arn)
 
         self._subscriptions.clear()
+
+    def _create_stub_method(self, channel, spec, timeout, multi):
+        return _StubMethod(self, channel, spec, timeout, multi)

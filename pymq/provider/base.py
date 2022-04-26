@@ -3,7 +3,7 @@ import inspect
 import logging
 import uuid
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pymq import json
 from pymq.core import Empty, EventBus, RpcRequest, RpcResponse, StubMethod, Topic
@@ -160,19 +160,24 @@ class DefaultStubMethod(StubMethod):
         #  such a subscription is probably just listening, and a real remote object, the expectation that there will
         #  be n results may not be correct
         fn = request.fn
-
         logger.debug('publishing to channel "%s" the request %s', fn, request)
-        n = self._bus.publish(request, channel=fn)
-
-        if n is None:
-            raise RuntimeError(
-                "Implementation error in bus: publish returned None instead of subscriber count"
-            )
-        if n == 0:
-            raise NoSuchRemoteError(request.fn)
 
         queue = self._get_response_queue(request)
+
         try:
+            n = self._bus.publish(request, channel=fn)
+
+            if n == 0:
+                raise NoSuchRemoteError(request.fn)
+
+            if n is None:
+                if self.multi:
+                    raise RuntimeError(
+                        "For multi-invoke to work, publish needs to return the subscriber count, returned None"
+                    )
+                else:
+                    n = 1
+
             results = list()
 
             for i in range(n):
@@ -280,7 +285,7 @@ class AbstractEventBus(EventBus, abc.ABC):
     def topic(self, name: str, pattern: bool = False):
         return WrapperTopic(self, name, pattern)
 
-    def publish(self, event, channel=None):
+    def publish(self, event, channel=None) -> Optional[int]:
         if channel is None:
             channel = fullname(event)
 
@@ -363,7 +368,7 @@ class AbstractEventBus(EventBus, abc.ABC):
     def _unbind_skeleton_method(self, skeleton, channel: str):
         self.unsubscribe(skeleton, channel, False)
 
-    def _publish(self, event, channel: str) -> int:
+    def _publish(self, event, channel: str) -> Optional[int]:
         raise NotImplementedError
 
     def _subscribe(self, callback: Callable, channel: str, pattern: bool):

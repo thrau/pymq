@@ -87,7 +87,7 @@ class EventBus(abc.ABC):
     def close(self):
         raise NotImplementedError
 
-    def publish(self, event, channel=None):
+    def publish(self, event, channel=None) -> Optional[int]:
         raise NotImplementedError
 
     def subscribe(self, callback: Callable, channel=None, pattern=False):
@@ -99,7 +99,7 @@ class EventBus(abc.ABC):
     def queue(self, name: str) -> Queue:
         raise NotImplementedError
 
-    def topic(self, name: str, pattern: bool = False):
+    def topic(self, name: str, pattern: bool = False) -> Topic:
         raise NotImplementedError
 
     def stub(self, fn, timeout=None, multi=False) -> StubMethod:
