@@ -164,7 +164,7 @@ def unsubscribe(callback, channel=None, pattern=False):
 
 
 def subscriber(*args, **kwargs):
-    if callable(args[0]):
+    if args and callable(args[0]):
         subscribe(args[0], *args[1:], **kwargs)
         return args[0]
 
