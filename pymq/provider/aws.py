@@ -148,7 +148,7 @@ class LocalstackConfig(AwsConfig):
         session = boto3.Session(
             aws_access_key_id="test",
             aws_secret_access_key="test",
-            region_name=region,
+            region_name=region or "us-east-1",
         )
         super(LocalstackConfig, self).__init__(session)
         self.client = functools.partial(self.session.client, endpoint_url=self.endpoint_url)
