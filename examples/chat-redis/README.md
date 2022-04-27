@@ -21,3 +21,6 @@ The client will send enter and leave events when the program starts/stops.
 ## Demo
 
 Here's a video:
+
+https://user-images.githubusercontent.com/3996682/165539966-07252bc8-af75-46f4-b31c-bc59b1cdfb74.mp4
+
