@@ -242,6 +242,7 @@ class TestRpc:
         bus.expose(void_function, channel="void_function")
 
     @pytest.mark.timeout(2)
+    @pytest.mark.xfail_provider("init_aws")
     def test_rpc_after_unexpose_raises_exception(self, bus):
         bus.expose(simple_remote_function, "simple_remote_function")
 

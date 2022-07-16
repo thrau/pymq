@@ -48,13 +48,16 @@ class RedisQueue(Queue):
     def get(self, block=True, timeout=None):
         if block:
             response = self._rds.brpop(self._key, timeout)
+            if response is None:
+                raise Empty
+            response = response[1]
         else:
             response = self._rds.rpop(self._key)
 
         if response is None:
             raise Empty
 
-        return self._deserialize(response[1])
+        return self._deserialize(response)
 
     def put(self, item, block=False, timeout=None):
         if block:

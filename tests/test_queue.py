@@ -35,19 +35,28 @@ class TestQueue:
         assert "elem2" == q.get()
 
     @pytest.mark.timeout(2)
+    def test_queue_put_get_nowait(self, bus):
+        q = bus.queue("test_queue")
+        q.put("elem1")
+        q.put("elem2")
+
+        assert "elem1" == q.get_nowait()
+        assert "elem2" == q.get_nowait()
+
+    @pytest.mark.timeout(2)
     def test_queue_get_blocking(self, bus):
         q = bus.queue("test_queue")
         event = threading.Event()
 
         def put():
             event.wait()
-            q.put("a")
+            q.put("abc")
 
         t = threading.Thread(target=put)
         t.start()
 
         event.set()
-        assert "a" == q.get(block=True)
+        assert "abc" == q.get(block=True)
         t.join()
 
     @pytest.mark.timeout(3)
