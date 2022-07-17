@@ -180,6 +180,46 @@ class TestMarhsalling:
         assert type(obj.simple_set) == set
         assert len(obj.simple_set) == 2
 
+    def test_encode_list_with_primitives(self):
+        obj = [1, 2, "a", False]
+
+        json_string = json.dumps(obj, cls=DeepDictEncoder)
+        doc = json.loads(json_string)
+        assert doc == obj
+
+    def test_decode_list_with_primitives(self):
+        doc = json.loads('[1, 2, "a", false]', cls=DeepDictDecoder)
+        assert doc == [1, 2, "a", False]
+
+    def test_encode_list_with_objects(self):
+        obj = [SimpleNested("foo", 1), SimpleNested("bar", 2)]
+        json_string = json.dumps(obj, cls=DeepDictEncoder)
+        doc = json.loads(json_string)
+        assert doc == {
+            "__type": fullname(SimpleNested),
+            "__list": [
+                {"name": "foo", "value": 1},
+                {"name": "bar", "value": 2},
+            ],
+        }
+
+    def test_decode_list_with_objects(self):
+        json_str = (
+            '{"__list": [{"name": "foo", "value": 1}, {"name": "bar", "value": 2}], '
+            '"__type": "tests.test_typing.SimpleNested"}'
+        )
+
+        obj = json.loads(json_str, cls=DeepDictDecoder)
+        assert type(obj) == list
+
+        assert isinstance(obj[0], SimpleNested)
+        assert obj[0].name == "foo"
+        assert obj[0].value == 1
+
+        assert isinstance(obj[1], SimpleNested)
+        assert obj[1].name == "bar"
+        assert obj[1].value == 2
+
     def test_from_dict_base_cases(self):
         assert 1 == deep_from_dict(1, int)
         assert 1 == deep_from_dict("1", int)

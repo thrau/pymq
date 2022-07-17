@@ -18,6 +18,9 @@ class EventWithPayload:
     def __init__(self, payload: Payload) -> None:
         self.payload = payload
 
+    def __eq__(self, other):
+        return self.payload == other.payload
+
 
 class TestQueue:
     def test_queue_name(self, bus):
@@ -152,6 +155,15 @@ class TestQueue:
         assert isinstance(v, dict)
         assert isinstance(v["a"], int)
         assert isinstance(v["b"], str)
+
+    @pytest.mark.timeout(2)
+    def test_queue_list_with_objects(self, bus):
+        ls = [EventWithPayload(Payload("foo", 1)), EventWithPayload(Payload("bar", 2))]
+
+        q = bus.queue("test_queue")
+        q.put(ls)
+
+        assert ls == q.get()
 
     def test_queue_complex_types(self, bus):
         q = bus.queue("test_queue")
