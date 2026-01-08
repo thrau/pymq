@@ -1,7 +1,57 @@
 # PyMQ project configuration
 [build-system]
-requires = ['setuptools', 'wheel']
-build-backend = "setuptools.build_meta"
+requires = ['hatchling']
+build-backend = "hatchling.build"
+
+[project]
+name = "pymq"
+description = "A simple message-oriented middleware library built for Python IPC across machine boundaries"
+dynamic = ["version"]
+readme = "README.md"
+authors = [
+    { name = "Thomas Rausch", email = "thomas@thrau.at" }
+]
+license = "MIT"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: System :: Networking",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/thrau/pymq"
+Repository = "https://github.com/thrau/pymq"
+
+[project.optional-dependencies]
+redis = ["redis>=3.2.1"]
+ipc = ["posix_ipc==1.0.4"]
+aws = ["boto3"]
+full = [
+    "redis>=3.2.1",
+    "posix_ipc==1.0.4",
+    "boto3",
+]
+test = [
+    "coverage[toml]>=5.0",
+    "pytest-cov>=2.7.1",
+    "coveralls",
+    "black>=22.1",
+    "isort>=5.10",
+    "pytest>=7.0",
+    "pytest-timeout>=2.1",
+    "localstack>=0.14",
+    "redislite>=5.0.124623",
+]
+
+[tool.hatch.version]
+path = "pymq/__init__.py"
 
 [tool.black]
 line_length = 100
