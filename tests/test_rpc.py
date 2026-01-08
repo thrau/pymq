@@ -83,7 +83,7 @@ class RpcHolder:
 class TestRpc:
     @pytest.mark.timeout(60)
     def test_assert_bus(self, bus):
-        # gives localstack a chance to start
+        # gives backends a chance to start
         assert bus
 
     @pytest.mark.timeout(2)
@@ -242,7 +242,6 @@ class TestRpc:
         bus.expose(void_function, channel="void_function")
 
     @pytest.mark.timeout(2)
-    @pytest.mark.xfail_provider("init_aws")
     def test_rpc_after_unexpose_raises_exception(self, bus):
         bus.expose(simple_remote_function, "simple_remote_function")
 

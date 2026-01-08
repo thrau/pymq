@@ -47,7 +47,6 @@ test = [
     "isort>=5.10",
     "pytest>=7.0",
     "pytest-timeout>=2.1",
-    "localstack>=0.14",
     "redislite>=5.0.124623",
 ]
 
