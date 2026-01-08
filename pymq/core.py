@@ -182,12 +182,12 @@ def init(factory, start_bus=True):
         if start_bus:
             start()
 
-        for (callback, channel, pattern) in _uninitialized_subscribers:
+        for callback, channel, pattern in _uninitialized_subscribers:
             _bus.subscribe(callback, channel, pattern)
 
         _uninitialized_subscribers.clear()
 
-        for (callback, channel) in _uninitialized_remote_fns:
+        for callback, channel in _uninitialized_remote_fns:
             _bus.expose(callback, channel)
 
         _uninitialized_remote_fns.clear()

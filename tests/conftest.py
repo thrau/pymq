@@ -4,7 +4,6 @@ import shutil
 import sys
 
 import pytest
-from localstack.utils.bootstrap import LocalstackContainer, LocalstackContainerServer
 
 import pymq as pymq
 
@@ -29,16 +28,12 @@ def pytest_runtest_setup(item):
                 pytest.xfail("text expected to fail for %s" % init_fn)
 
 
-@pytest.fixture(params=["init_simple", "init_redis", "init_ipc", "init_aws"])
+@pytest.fixture(params=["init_simple", "init_redis", "init_ipc"])
 def pymq_init(request):
     """parameterized pymq_init fixture (a fixture that, when called, initializes pymq)"""
 
     if request.param == "init_ipc" and sys.platform != "linux":
         pytest.skip("IPC provider only works for linux")
-        return None
-
-    if request.param == "init_aws" and not shutil.which("docker"):
-        pytest.skip("Cannot test AWS provider without docker (needed to run localstack)")
         return None
 
     return request.getfixturevalue(request.param)
@@ -192,51 +187,3 @@ def init_redis(redislite):
 def pymq_redis(init_redis):
     init_redis()
     yield pymq
-
-
-# aws provider through localstack
-
-
-@pytest.fixture()
-def pymq_aws(init_aws):
-    init_aws()
-    yield pymq
-
-
-@pytest.fixture()
-def init_aws(localstack):
-    from pymq.provider.aws import AwsEventBus, LocalstackConfig
-
-    config = LocalstackConfig(endpoint_url=localstack.url)
-
-    _bus_container = []
-    _invalid = False
-
-    def _init() -> AwsEventBus:
-        if _bus_container:
-            raise ValueError("already called")
-        if _invalid:
-            raise ValueError("expired init function")
-
-        bus = pymq.init(config)
-        _bus_container.append(bus)
-        return bus
-
-    yield _init
-
-    _invalid = True
-
-    if _bus_container:
-        pymq.shutdown()
-        _bus_container[0].close()
-
-
-@pytest.fixture(scope="class")
-def localstack():
-    container = LocalstackContainer()
-    container.ports.add(4566, 4566)
-    ls = LocalstackContainerServer(container)
-    ls.start()
-    ls.wait_is_up()
-    yield ls
-    ls.shutdown()

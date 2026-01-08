@@ -15,7 +15,6 @@ With PyMQ, developers can integrate Python applications running on different mac
 existing transport mechanisms.
 PyMQ currently provides
 a Redis backend,
-an AWS backend using SQS and SNS,
 a POSIX IPC backend for single-machine IPC, and
 an in-memory backend for testing.
 The API is extensible and other transports can be plugged in.
@@ -33,7 +32,6 @@ If you want to use the redis backend, then run
 Available providers:
 
 * `pymq[redis]` Redis provider
-* `pymq[aws]` AWS provider using SNS and SQS
 * `pymq[ipc]` Linux IPC provider
 * `pymq[full]` install all providers
 
@@ -140,7 +138,6 @@ Providers
 
 * `SimpleEventBus` used for testing and rudimentary single-thread dispatching
 * `RedisEventBus` works across network and process boundaries but requires a running redis instance
-* `AwsEventBus` uses AWS Simple Notification Service (SNS) and Simple Queuing Service (SQS)
 * `IpcEventBus` uses `posix_ipc` message queues as event loops and maintains a tree of topic subscriptions in
   `/run/shm`. Useful for eventing across process boundaries without an additional server component.
 
@@ -161,8 +158,6 @@ Known Limitations
 * Using the `pymq` singleton in multiprocessing scenarios may not work as expected because the module holds a Thread in
   a global variable. A workaround is to re-start the bus by calling `shutdown()` and `init()` in the forked Process.
 * IPC provider only works for Linux
-* Multi-RPC does not work for the AWS provider
-* AWS provider cannot automatically delete all queues and topics.
 
 Background
 ----------

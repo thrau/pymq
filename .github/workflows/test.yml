@@ -5,10 +5,10 @@ on:
     paths-ignore:
       - 'README.md'
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   test:
@@ -26,9 +26,6 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Download LocalStack
-        run: docker pull localstack/localstack
 
       - name: Run tests
         run: |

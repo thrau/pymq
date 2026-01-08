@@ -6,7 +6,6 @@ from typing import NamedTuple
 import pytest
 
 import pymq
-from pymq.provider.aws import AwsEventBus
 from pymq.provider.ipc import IpcEventBus
 from pymq.provider.simple import SimpleEventBus
 
@@ -191,7 +190,7 @@ class TestPubSub:
         assert "foobar" == called.payload.name
         assert 42 == called.payload.value
 
-    @pytest.mark.xfail_provider("init_ipc", "init_simple", "init_aws")
+    @pytest.mark.xfail_provider("init_ipc", "init_simple")
     def test_publish_pattern(self, bus):
         invocations = queue.Queue()
 
