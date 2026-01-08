@@ -39,6 +39,7 @@ full = [
     "boto3",
 ]
 test = [
+    "build",
     "coverage[toml]>=5.0",
     "pytest-cov>=2.7.1",
     "coveralls",
