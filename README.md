@@ -10,6 +10,8 @@ PyMQ
 
 PyMQ is a simple message-oriented middleware library for implementing Python IPC across machine boundaries. The API
 enables different styles of remoting via Pub/Sub, Queues, and synchronous RPC.
+It is an excellent choice for Python projects that need robust IPC without the overhead of more complex frameworks
+like Celery or gRPC.
 
 With PyMQ, developers can integrate Python applications running on different machines in a loosely coupled way over
 existing transport mechanisms.
@@ -124,6 +126,8 @@ echo = pymq.stub(Remote.echo)
 echo('pymq') # "echo: pymq"
 ```
 
+#### Multi-RPC
+
 If there are multiple providers of the same object, then a stub can be initialized with `multi=True` to get a list of
 results. It may be useful to use a timeout in this case.
 
@@ -132,6 +136,8 @@ remote = pymq.stub('remote_method', multi=True, timeout=2)
 
 result = remote() # result will be a list containing the results of all invocations of available remote objects
 ```
+
+You can find an example for multi-RPC in the `examples/metrics-rpc` directory.
 
 Providers
 ---------
