@@ -32,7 +32,7 @@ def load_class(classname):
     return locate(classname)
 
 
-def new_instance(cls, data):
+def new_instance(cls: type, data: dict[str, typing.Any]) -> typing.Any:
     # if available, use constructor args
     arg_names = inspect.getfullargspec(cls).args
     args = {k: v for k, v in data.items() if k in arg_names}
@@ -51,6 +51,27 @@ def new_instance(cls, data):
 
 
 def fullname(o):
+    """
+    Returns the fully qualified name of an object or a type.
+
+    For types, it returns the module-qualified name unless it is a built-in type.
+    For instances, it returns the fully qualified name of the instance's class.
+    For functions and methods, it returns the module-qualified name.
+
+    Examples:
+        >>> fullname(int)
+        'int'
+        >>> fullname("foo")
+        'str'
+        >>> from pymq.core import EventBus
+        >>> fullname(EventBus)
+        'pymq.core.EventBus'
+        >>> fullname(EventBus().run)
+        'pymq.core.EventBus.run'
+
+    :param o: the object or type
+    :return: the fully qualified name
+    """
     # o.__module__ + "." + o.__class__.__qualname__ is an example in
     # this context of H.L. Mencken's "neat, plausible, and wrong."
     # Python makes no guarantees as to whether the __module__ special
@@ -73,7 +94,16 @@ def fullname(o):
         return module + "." + o.__name__
 
 
-def deep_from_dict(doc, cls):
+def deep_from_dict(doc: typing.Any, cls: type) -> typing.Any:
+    """
+     The method attempts to de-serialize the given object into the given class, essentially reversing ``deep_to_dict``.
+
+    If the object is already of the correct type, it is returned as-is.
+
+    :param doc: the object to de-serialize
+    :param cls: the class to deserialize the object into
+    :return:
+    """
     if doc is None:
         return doc
 
@@ -143,7 +173,14 @@ def deep_from_dict(doc, cls):
     return new_instance(cls, result)
 
 
-def deep_to_dict(obj):
+def deep_to_dict(obj: typing.Any) -> dict[str, typing.Any] | typing.Any:
+    """
+    Convert an object to a serializable type. When passing objects, this will create a dictionary. Primitive types
+    are returned as is, and container types are recursively converted.
+
+    :param obj: the object to convert
+    :return: the converted object
+    """
     if obj is None:
         return None
 

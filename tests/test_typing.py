@@ -329,3 +329,67 @@ class TestMarhsalling:
         err = deep_from_dict("failed", TimeoutError)
         assert isinstance(err, TimeoutError)
         assert ("failed",) == err.args
+
+
+class TestFullname:
+    def test_class(self):
+        assert fullname(RootClass) == "tests.test_typing.RootClass"
+
+    def test_instance(self):
+        assert fullname(RootClass()) == "tests.test_typing.RootClass"
+
+    def test_builtin_class(self):
+        assert fullname(int) == "int"
+        assert fullname(str) == "str"
+        assert fullname(list) == "list"
+
+    def test_builtin_instance(self):
+        assert fullname(1) == "int"
+        assert fullname("foo") == "str"
+        assert fullname([]) == "list"
+
+    def test_function(self):
+        def my_func():
+            pass
+
+        # local functions have <locals> in qualname if using qualname
+        # but fullname uses __name__ for classes and __qualname__ for functions
+        assert fullname(sample_object) == "tests.test_typing.sample_object"
+
+    def test_method(self):
+        obj = TestMarhsalling()
+        # For methods it uses __module__ + "." + __qualname__
+        assert (
+            fullname(obj.assertEqualsRoot) == "tests.test_typing.TestMarhsalling.assertEqualsRoot"
+        )
+
+    def test_nested_class(self):
+        class Nested:
+            pass
+
+        # For classes it uses __name__, not __qualname__
+        # fullname(Nested) -> module + "." + Nested.__name__
+        assert fullname(Nested) == "tests.test_typing.Nested"
+
+    def test_none(self):
+        # fullname(None) -> o = None.__class__ (NoneType)
+        # module = NoneType.__module__ ('builtins')
+        # module == str.__class__.__module__ ('builtins')
+        # returns o.__name__ ('NoneType')
+        assert fullname(None) == "NoneType"
+
+    def test_unusual_types(self):
+        # Module
+        import math
+
+        # math is an object, math.__class__ is 'module'
+        # 'module'.__module__ is 'builtins'
+        assert fullname(math) == "module"
+
+        # Lambda
+        l = lambda x: x
+        # Lambda has <locals> when defined inside a method
+        assert fullname(l).endswith(".<lambda>")
+
+        # Exception instance
+        assert fullname(ValueError("test")) == "ValueError"

@@ -48,23 +48,49 @@ class Queue(abc.ABC, Generic[QItem]):
 
     def qsize(self) -> int:
         """
+        Returns the number of elements in the queue.
+
         :return: the approximate size of the queue
         """
         raise NotImplementedError
 
     def empty(self) -> bool:
+        """
+        Determine if the queue is empty.
+
+        :return: A boolean value where `True` indicates the queue is empty and
+            `False` indicates it is not.
+        """
         return self.qsize() == 0
 
     def put_nowait(self, item: QItem):
+        """
+        Like a put but returns immediately. Depending on the provider and the queue parameters, this may
+        raise an exception if the item cannot be put into the queue momentarily.
+
+        :param item:  the item to put
+        :raises Full: if the queue is full
+        """
         return self.put(item, block=False)
 
     def get_nowait(self) -> QItem:
+        """
+        Like a get but returns immediately. Depending on the provider and the queue parameters, this may
+        raise an exception if the item cannot be retrieved from the queue momentarily
+
+        :return: the item retrieved from the queue
+        :raises Empty: if the queue is empty
+        """
         return self.get(block=False)
 
     def close(self):
         pass
 
     def free(self):
+        """
+        Frees the underlying resource needed for the Queue. This is relevant for some provides (like the POSIX ICP),
+        where the queue needs to be unlinked.
+        """
         pass
 
 
@@ -106,6 +132,10 @@ class Topic(abc.ABC):
 
 
 class RpcRequest(NamedTuple):
+    """
+    Represents a request for a remote procedure call.
+    """
+
     fn: str
     response_channel: str
     args: tuple = None
@@ -113,6 +143,10 @@ class RpcRequest(NamedTuple):
 
 
 class RpcResponse(NamedTuple):
+    """
+    Represents the response of a remote procedure call.
+    """
+
     fn: str
     result: Any
     result_type: str = None
