@@ -142,7 +142,7 @@ def redislite(tmp_path_factory):
     tmp = tmp_path_factory.mktemp("redislite", numbered=True)
     print(tmp)
     tmpfile = tmp / "pymq_test.db"
-    rds = redislite.Redis(str(tmpfile), decode_responses=True)
+    rds = redislite.Redis(str(tmpfile), decode_responses=True, protocol=2)
     rds.get("dummykey")  # run a first command to initiate
 
     yield rds
