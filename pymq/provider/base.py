@@ -77,7 +77,7 @@ def inspect_listener(fn) -> str:
         return fullname(event_type)
 
 
-def get_remote_name(fn):
+def get_remote_name(fn: Callable):
     return fn.__module__ + "." + fn.__qualname__
 
 
@@ -285,13 +285,13 @@ class AbstractEventBus(EventBus, abc.ABC):
     def topic(self, name: str, pattern: bool = False):
         return WrapperTopic(self, name, pattern)
 
-    def publish(self, event, channel=None) -> Optional[int]:
+    def publish(self, event, channel: str | None = None) -> Optional[int]:
         if channel is None:
             channel = fullname(event)
 
         return self._publish(event, channel)
 
-    def subscribe(self, callback, channel=None, pattern=False):
+    def subscribe(self, callback: Callable, channel: str | None = None, pattern=False):
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -301,7 +301,7 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._subscribers[(channel, pattern)].append(callback)
         self._subscribe(callback, channel, pattern)
 
-    def unsubscribe(self, callback, channel=None, pattern=False):
+    def unsubscribe(self, callback, channel: str | None = None, pattern: bool = False):
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -315,7 +315,9 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         self._unsubscribe(callback, channel, pattern)
 
-    def stub(self, fn, timeout=None, multi=False) -> StubMethod:
+    def stub(
+        self, fn: Callable | str, timeout: float | None = None, multi: bool = False
+    ) -> StubMethod:
         if callable(fn):
             channel = get_remote_name(fn)
             spec = inspect.getfullargspec(fn)
@@ -341,7 +343,7 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._remote_fns[channel] = skeleton
         self._bind_skeleton_method(skeleton, channel)
 
-    def unexpose(self, fn):
+    def unexpose(self, fn: Callable):
         if callable(fn):
             channel = get_remote_name(fn)
         elif isinstance(fn, str):

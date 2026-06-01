@@ -23,10 +23,10 @@ class RedisConfig:
         self.args = args
         self.kwargs = kwargs
 
-    def get_redis(self):
+    def get_redis(self) -> redis.Redis:
         return self.rds or redis.Redis(*self.args, **self.kwargs, decode_responses=True)
 
-    def __call__(self):
+    def __call__(self) -> "RedisEventBus":
         return RedisEventBus(rds=self.get_redis())
 
 
@@ -42,10 +42,10 @@ class RedisQueue(Queue):
         self._key = key or name
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self._name
 
-    def get(self, block=True, timeout=None):
+    def get(self, block: bool = True, timeout: float | None = None):
         if block:
             response = self._rds.brpop(self._key, timeout)
             if response is None:
