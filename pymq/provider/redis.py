@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 class RedisConfig:
+    """
+    Configuration class for Redis-based EventBus and Queue providers.
+    It can be initialized with the same arguments as ``redis.Redis`` or with an existing ``redis.Redis`` instance.
+    Example::
+
+        import pymq
+        from pymq.provider.redis import RedisConfig
+
+        pymq.init(RedisConfig(host="localhost", port=6379))
+    """
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
 
@@ -32,7 +43,13 @@ class RedisConfig:
 
 class RedisQueue(Queue):
     """
-    Queue implementation over Redis. Uses very naive serialization using pickle and Base64.
+    Queue implementation over Redis. Uses json for serialization.
+
+    Redis keys are constructed using the pattern: `__eventbus:<namespace>:<name>`.
+
+    Example:
+        For a queue named "my_queue" in the default "global" namespace, the Redis key will be
+        `__eventbus:global:my_queue`.
     """
 
     def __init__(self, rds: redis.Redis, name: str, key: str = None) -> None:
@@ -77,7 +94,8 @@ class RedisQueue(Queue):
 
 class RedisSkeletonMethod(DefaultSkeletonMethod):
     """
-    This special skeleton makes sure the result channels expire after a given time as to not create garbage.
+    A specialized RPC skeleton for Redis that ensures response channels have a TTL (Time To Live).
+    This prevents temporary RPC response queues from cluttering Redis memory.
     """
 
     # noinspection PyUnresolvedReferences
@@ -89,6 +107,19 @@ class RedisSkeletonMethod(DefaultSkeletonMethod):
 
 
 class RedisEventBus(AbstractEventBus):
+    """
+    EventBus implementation using Redis Pub/Sub for event distribution and RPC.
+
+    The EventBus uses a configurable namespace to isolate channels. All Redis keys and
+    Pub/Sub channels are prefixed with `__eventbus:<namespace>:`.
+
+    Key construction examples:
+        - Pub/Sub channel for "my_event": `__eventbus:global:my_event`
+        - RPC response channel: `__eventbus:global:rpc-res-<uuid>`
+
+    Default `rpc_channel_expire` is 300 seconds (5 minutes).
+    """
+
     rpc_channel_expire = 300  # 5 minute default
 
     def __init__(self, namespace="global", dispatcher=None, rds: redis.Redis = None) -> None:
@@ -123,6 +154,19 @@ class RedisEventBus(AbstractEventBus):
             logger.debug("pubsub listen returned, waiting on next iteration")
 
     def run(self):
+        """
+        Runs the core logic for managing Redis pub/sub communication and dispatching
+        messages to registered subscribers. This method handles initializing Redis
+        connections, subscribing to channels, listening for messages, and processing
+        incoming messages.
+
+        It uses a ThreadPoolExecutor to manage the submission of tasks for subscriber
+        callbacks, ensuring non-blocking behavior. The method safeguards critical sections
+        with a threading lock to ensure thread safety while modifying shared resources.
+
+        Error handling is implemented to log exceptions during message listening, and
+        resources are cleaned up properly during shutdown.
+        """
         with self._lock:
             if self.dispatcher is None:
                 self.dispatcher = ThreadPoolExecutor(1)
