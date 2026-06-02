@@ -35,7 +35,7 @@ class Queue(abc.ABC, Generic[QItem]):
         """
         raise NotImplementedError
 
-    def put(self, item: QItem, block: bool = True, timeout: float = None):
+    def put(self, item: QItem, block: bool = True, timeout: float | None = None) -> None:
         """
         Put an item into the queue.
 
@@ -83,10 +83,10 @@ class Queue(abc.ABC, Generic[QItem]):
         """
         return self.get(block=False)
 
-    def close(self):
+    def close(self) -> None:
         pass
 
-    def free(self):
+    def free(self) -> None:
         """
         Frees the underlying resource needed for the Queue. This is relevant for some provides (like the POSIX ICP),
         where the queue needs to be unlinked.
@@ -113,7 +113,7 @@ class Topic(abc.ABC):
         """
         raise NotImplementedError
 
-    def publish(self, event) -> int:
+    def publish(self, event: Any) -> int:
         """
         Publish an event to the topic.
 
@@ -122,7 +122,7 @@ class Topic(abc.ABC):
         """
         raise NotImplementedError
 
-    def subscribe(self, callback):
+    def subscribe(self, callback: Callable[[Any], None]) -> None:
         """
         Subscribe a callback to the topic.
 
@@ -184,13 +184,13 @@ class EventBus(abc.ABC):
     Base class for an event bus.
     """
 
-    def run(self):
+    def run(self) -> None:
         """
         Start the event bus loop. This method blocks until the event bus is closed.
         """
         raise NotImplementedError
 
-    def close(self):
+    def close(self) -> None:
         """
         Close the event bus and shut down the event bus loop.
         """
@@ -206,7 +206,9 @@ class EventBus(abc.ABC):
         """
         raise NotImplementedError
 
-    def subscribe(self, callback: Callable, channel: str | None = None, pattern=False):
+    def subscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
         """
         Subscribe a callback to a channel.
 
@@ -216,7 +218,9 @@ class EventBus(abc.ABC):
         """
         raise NotImplementedError
 
-    def unsubscribe(self, callback: Callable, channel=None, pattern=False):
+    def unsubscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
         """
         Unsubscribe a callback from a channel.
 
@@ -258,7 +262,7 @@ class EventBus(abc.ABC):
         """
         raise NotImplementedError
 
-    def expose(self, fn: Callable, channel: str = None):
+    def expose(self, fn: Callable, channel: str | None = None) -> None:
         """
         Expose a local method for remote invocation.
 
@@ -267,7 +271,7 @@ class EventBus(abc.ABC):
         """
         raise NotImplementedError
 
-    def unexpose(self, fn: Callable):
+    def unexpose(self, fn: Callable | str) -> None:
         """
         Unexpose a previously exposed method.
 
@@ -313,17 +317,17 @@ class _WrapperTopic(Topic):
     def is_pattern(self) -> bool:
         return self._is_pattern
 
-    def publish(self, event) -> int:
+    def publish(self, event: Any) -> int:
         if self.is_pattern:
             raise ValueError("Cannot publish to pattern topic")
         else:
             return publish(event, self.name)
 
-    def subscribe(self, callback):
+    def subscribe(self, callback: Callable[[Any], None]) -> None:
         return subscribe(callback, self.name, self.is_pattern)
 
 
-def subscribe(callback, channel=None, pattern=False):
+def subscribe(callback: Callable, channel: str | None = None, pattern: bool = False) -> None:
     """
     Subscribe a callback to a channel on the global event bus.
 
@@ -338,7 +342,7 @@ def subscribe(callback, channel=None, pattern=False):
             _uninitialized_subscribers.append((callback, channel, pattern))
 
 
-def unsubscribe(callback, channel=None, pattern=False):
+def unsubscribe(callback: Callable, channel: str | None = None, pattern: bool = False) -> None:
     """
     Unsubscribe a callback from a channel on the global event bus.
 
@@ -353,7 +357,7 @@ def unsubscribe(callback, channel=None, pattern=False):
             _uninitialized_subscribers.remove((callback, channel, pattern))
 
 
-def subscriber(*args, **kwargs):
+def subscriber(*args: Any, **kwargs: Any) -> Callable:
     """
     Decorator for subscribing a function to a channel on the global event bus.
 
@@ -399,7 +403,7 @@ def init(factory: Callable[[], _EB], start_bus: bool = True) -> _EB:
         return _bus
 
 
-def publish(event: Any, channel: str | None = None):
+def publish(event: Any, channel: str | None = None) -> int | None:
     """
     Publish an event to a channel on the global event bus.
 
@@ -442,7 +446,7 @@ def topic(name: str, pattern: bool = False) -> Topic:
     return _bus.topic(name, pattern)
 
 
-def stub(fn: Callable, timeout=None, multi=False) -> StubMethod:
+def stub(fn: Callable | str, timeout: float | None = None, multi: bool = False) -> StubMethod:
     """
     Create a stub for a remote method on the global event bus.
 
@@ -472,7 +476,7 @@ def expose(fn: Callable, channel: str | None = None):
             _uninitialized_remote_fns.append((fn, channel))
 
 
-def unexpose(fn: Callable):
+def unexpose(fn: Callable | str) -> None:
     """
     Unexpose a previously exposed method on the global event bus.
 
@@ -486,7 +490,7 @@ def unexpose(fn: Callable):
     return _bus.unexpose(fn)
 
 
-def start():
+def start() -> None:
     """
     Start the global event bus loop in a background thread.
 
@@ -504,7 +508,7 @@ def start():
             _runner.start()
 
 
-def shutdown():
+def shutdown() -> None:
     """
     Shutdown the global event bus and its background thread.
     """
@@ -523,7 +527,7 @@ def shutdown():
         _uninitialized_remote_fns.clear()
 
 
-def remote(*args, **kwargs):
+def remote(*args: Any, **kwargs: Any) -> Callable:
     """
     Decorator for exposing a function for remote invocation on the global event bus.
 

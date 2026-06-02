@@ -2,12 +2,11 @@ import json
 import logging
 import threading
 from concurrent.futures.thread import ThreadPoolExecutor
-from typing import Callable
+from typing import Any, Callable
 
 import redis
 
-from pymq import RpcRequest
-from pymq.core import Empty, Queue
+from pymq.core import Empty, Queue, RpcRequest, RpcResponse
 from pymq.json import DeepDictDecoder, DeepDictEncoder
 from pymq.provider.base import AbstractEventBus, DefaultSkeletonMethod, invoke_function
 
@@ -70,7 +69,7 @@ class RedisQueue(Queue):
     def name(self) -> str:
         return self._name
 
-    def get(self, block: bool = True, timeout: float | None = None):
+    def get(self, block: bool = True, timeout: float | None = None) -> Any:
         if block:
             response = self._rds.brpop(self._key, timeout)
             if response is None:
@@ -84,19 +83,19 @@ class RedisQueue(Queue):
 
         return self._deserialize(response)
 
-    def put(self, item, block=False, timeout=None):
+    def put(self, item: Any, block: bool = False, timeout: float | None = None) -> None:
         if block:
             raise NotImplementedError()
 
         self._rds.lpush(self._key, self._serialize(item))
 
-    def qsize(self):
+    def qsize(self) -> int:
         return self._rds.llen(self._key)
 
-    def _serialize(self, item):
+    def _serialize(self, item: Any) -> str:
         return json.dumps(item, cls=DeepDictEncoder)
 
-    def _deserialize(self, item):
+    def _deserialize(self, item: str) -> Any:
         return json.loads(item, cls=DeepDictDecoder)
 
 
@@ -107,7 +106,7 @@ class RedisSkeletonMethod(DefaultSkeletonMethod):
     """
 
     # noinspection PyUnresolvedReferences
-    def _queue_response(self, request, response):
+    def _queue_response(self, request: RpcRequest, response: RpcResponse) -> None:
         super()._queue_response(request, response)
         self._bus.rds.expire(
             self._bus.channel_prefix + request.response_channel, self._bus.rpc_channel_expire
@@ -136,7 +135,7 @@ class RedisEventBus(AbstractEventBus):
         self.dispatcher: ThreadPoolExecutor = dispatcher
         self.rds: redis.Redis = rds
 
-        self._pubsub: redis.client.PubSub = None
+        self._pubsub: redis.client.PubSub | None = None
         self._lock = threading.Condition()
         self._closed = False
 
@@ -161,7 +160,7 @@ class RedisEventBus(AbstractEventBus):
             yield from self._pubsub.listen()
             logger.debug("pubsub listen returned, waiting on next iteration")
 
-    def run(self):
+    def run(self) -> None:
         """
         Runs the core logic for managing Redis pub/sub communication and dispatching
         messages to registered subscribers. This method handles initializing Redis
@@ -232,7 +231,7 @@ class RedisEventBus(AbstractEventBus):
             super().unsubscribe(callback, channel, pattern)
             self._lock.notify()
 
-    def close(self):
+    def close(self) -> None:
         with self._lock:
             if self._closed or not self._pubsub:
                 return
@@ -252,7 +251,7 @@ class RedisEventBus(AbstractEventBus):
     def queue(self, name: str) -> Queue:
         return RedisQueue(self.rds, name, self.channel_prefix + name)
 
-    def _publish(self, event, channel: str):
+    def _publish(self, event: Any, channel: str) -> int:
         data = json.dumps(event, cls=DeepDictEncoder)
 
         redis_channel = self.channel_prefix + channel
@@ -291,7 +290,7 @@ class RedisEventBus(AbstractEventBus):
             if redis_channel in self._pubsub.channels:
                 self._pubsub.unsubscribe(redis_channel)
 
-    def _init_subscriptions(self):
+    def _init_subscriptions(self) -> None:
         logger.debug("initializing subscriptions %s", self._subscribers)
         channels = [
             self.channel_prefix + channel
@@ -312,7 +311,7 @@ class RedisEventBus(AbstractEventBus):
             self._pubsub.psubscribe(*patterns)
 
     @staticmethod
-    def _call_listener(fn, data):
+    def _call_listener(fn: Callable, data: str) -> None:
         invoke_function(fn, data)
 
     def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:

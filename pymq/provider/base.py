@@ -14,7 +14,7 @@ from pymq.typing import deep_from_dict, fullname, load_class
 logger = logging.getLogger(__name__)
 
 
-def invoke_function(fn, data: str):
+def invoke_function(fn: Callable, data: str | bytes) -> None:
     """
     Invokes the passed function with the given data. Expects the data to be a JSON object that contains the serialized
     parameters for the function.
@@ -86,7 +86,7 @@ def inspect_listener(fn) -> str:
         return fullname(event_type)
 
 
-def get_remote_name(fn: Callable):
+def get_remote_name(fn: Callable) -> str:
     """
     Returns a unique remote name for a function, typically its module and qualified name.
     """
@@ -117,13 +117,13 @@ class WrapperTopic(Topic):
     def is_pattern(self) -> bool:
         return self._is_pattern
 
-    def publish(self, event) -> int:
+    def publish(self, event: Any) -> int:
         if self.is_pattern:
             raise ValueError("Cannot publish to pattern topic")
         else:
             return self._bus.publish(event, self.name)
 
-    def subscribe(self, callback):
+    def subscribe(self, callback: Callable) -> None:
         return self._bus.subscribe(callback, self.name, self.is_pattern)
 
 
@@ -148,7 +148,7 @@ class DefaultStubMethod(StubMethod):
         self.timeout = timeout
         self.multi = multi
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         try:
             response = self.rpc(*args, **kwargs)
         except NoSuchRemoteError:
@@ -163,7 +163,7 @@ class DefaultStubMethod(StubMethod):
         request = RpcRequest(self._channel, self._next_callback_queue(), args, kwargs)
         return self._invoke(request)
 
-    def _unmarshal(self, response: RpcResponse, raise_error=False):
+    def _unmarshal(self, response: RpcResponse, raise_error: bool = False) -> Any:
         if response.error:
             if isinstance(response.result, Exception):
                 result = RemoteInvocationError(response.result_type, *response.result.args)
@@ -177,10 +177,10 @@ class DefaultStubMethod(StubMethod):
 
         return deep_from_dict(response.result, load_class(response.result_type))
 
-    def _next_callback_queue(self):
+    def _next_callback_queue(self) -> str:
         return "__rpc_" + str(uuid.uuid4())
 
-    def _get_response_queue(self, request: RpcRequest):
+    def _get_response_queue(self, request: RpcRequest) -> Any:
         return self._bus.queue(request.response_channel)
 
     def _invoke(self, request: RpcRequest) -> Union[RpcResponse, List[RpcResponse]]:
@@ -229,7 +229,7 @@ class DefaultStubMethod(StubMethod):
         finally:
             self._finalize_response_queue(queue)
 
-    def _finalize_response_queue(self, queue):
+    def _finalize_response_queue(self, queue: Any) -> None:
         """
         Hook to do something with the queue used as response channel once it's no longer needed.
 
@@ -237,7 +237,7 @@ class DefaultStubMethod(StubMethod):
         """
         pass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._spec is None:
             return "%s()" % self._channel
         else:
@@ -269,7 +269,7 @@ class DefaultSkeletonMethod:
         self._fn = fn
         self._fn_spec = inspect.getfullargspec(fn)
 
-    def __call__(self, request: RpcRequest):
+    def __call__(self, request: RpcRequest) -> None:
         try:
             result = self._invoke(request)
             response = RpcResponse(request.fn, result, fullname(result))
@@ -279,7 +279,7 @@ class DefaultSkeletonMethod:
 
         self._queue_response(request, response)
 
-    def _queue_response(self, request, response):
+    def _queue_response(self, request: RpcRequest, response: RpcResponse) -> None:
         self._bus.queue(request.response_channel).put(response)
 
     def _invoke(self, request: RpcRequest) -> Any:
@@ -336,7 +336,7 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._subscribers = defaultdict(list)
         self._remote_fns = dict()
 
-    def topic(self, name: str, pattern: bool = False):
+    def topic(self, name: str, pattern: bool = False) -> Topic:
         return WrapperTopic(self, name, pattern)
 
     def publish(self, event, channel: str | None = None) -> Optional[int]:
@@ -345,7 +345,9 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         return self._publish(event, channel)
 
-    def subscribe(self, callback: Callable, channel: str | None = None, pattern=False):
+    def subscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -355,7 +357,9 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._subscribers[(channel, pattern)].append(callback)
         self._subscribe(callback, channel, pattern)
 
-    def unsubscribe(self, callback, channel: str | None = None, pattern: bool = False):
+    def unsubscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -387,7 +391,7 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         return self._create_stub_method(channel, spec, timeout, multi)
 
-    def expose(self, fn, channel=None):
+    def expose(self, fn: Callable, channel: str | None = None) -> None:
         """
         Exposes a function as a remote procedure on the event bus.
         It creates a skeleton method and subscribes it to the RPC channel.
@@ -423,10 +427,12 @@ class AbstractEventBus(EventBus, abc.ABC):
         del self._remote_fns[channel]
         self._unbind_skeleton_method(skeleton, channel)
 
-    def _create_stub_method(self, channel, spec, timeout, multi):
+    def _create_stub_method(
+        self, channel: str, spec: inspect.FullArgSpec | None, timeout: float | None, multi: bool
+    ) -> StubMethod:
         return DefaultStubMethod(self, channel, spec, timeout, multi)
 
-    def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
+    def _create_skeleton_method(self, channel: str, fn: Callable) -> Callable[[RpcRequest], None]:
         return DefaultSkeletonMethod(self, channel, fn)
 
     def _bind_skeleton_method(self, skeleton, channel: str):
