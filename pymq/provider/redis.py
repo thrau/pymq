@@ -43,7 +43,15 @@ class RedisConfig:
 
 class RedisQueue(Queue):
     """
-    Queue implementation over Redis. Uses json for serialization.
+    Queue implementation over Redis using the LIST data structure. Uses json for serialization.
+
+    Implementation details:
+      - Uses Redis LIST type for FIFO queue operations
+      - `lpush` adds items to the head (left) of the list
+      - `rpop`/`brpop` removes items from the tail (right) of the list
+      - This achieves FIFO behavior: first item pushed is first item popped
+      - `brpop` provides blocking behavior with optional timeout
+      - `llen` returns queue size
 
     Redis keys are constructed using the pattern: `__eventbus:<namespace>:<name>`.
 
@@ -214,12 +222,12 @@ class RedisEventBus(AbstractEventBus):
 
         logger.debug("exitting eventbus listen loop")
 
-    def subscribe(self, callback, channel=None, pattern=False):
+    def subscribe(self, callback: Callable, channel: str | None = None, pattern: bool = False):
         with self._lock:
             super().subscribe(callback, channel, pattern)
             self._lock.notify()
 
-    def unsubscribe(self, callback, channel=None, pattern=False):
+    def unsubscribe(self, callback: Callable, channel: str | None = None, pattern: bool = False):
         with self._lock:
             super().unsubscribe(callback, channel, pattern)
             self._lock.notify()

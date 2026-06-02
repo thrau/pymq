@@ -110,7 +110,7 @@ class IpcQueue(Queue):
 
 class IpcStubMethod(DefaultStubMethod):
     """
-    Special StubMethod implementation that unlink the response queue once it's no longer needed.
+    Special StubMethod implementation that unlinks the response queue once it's no longer needed.
     """
 
     def _finalize_response_queue(self, queue: IpcQueue):

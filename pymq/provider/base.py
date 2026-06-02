@@ -19,9 +19,10 @@ def invoke_function(fn, data: str):
     Invokes the passed function with the given data. Expects the data to be a JSON object that contains the serialized
     parameters for the function.
 
+    The function uses type hints of the target function to perform deep de-serialization of the input data.
+
     :param fn: the function to invoke (a callable)
     :param data: the json object containing the data
-    :return:
     """
     # passes the event to the first parameter of the listener
     try:
@@ -53,6 +54,14 @@ def invoke_function(fn, data: str):
 
 
 def inspect_listener(fn) -> str:
+    """
+    Inspects a listener function to determine the event type it is interested in.
+    The function must have exactly one argument (excluding 'self' for methods) and that argument must be type-hinted.
+
+    :param fn: the listener function
+    :return: the fully qualified name of the event type
+    :raises ValueError: if the function signature does not match requirements
+    """
     spec = inspect.getfullargspec(fn)
 
     if hasattr(fn, "__self__"):
@@ -78,10 +87,18 @@ def inspect_listener(fn) -> str:
 
 
 def get_remote_name(fn: Callable):
+    """
+    Returns a unique remote name for a function, typically its module and qualified name.
+    """
     return fn.__module__ + "." + fn.__qualname__
 
 
 class WrapperTopic(Topic):
+    """
+    A Topic implementation that wraps an EventBus instance.
+    It delegates publish and subscribe operations back to the bus using its name.
+    """
+
     _bus: EventBus
     _name: str
     _is_pattern: bool
@@ -111,6 +128,17 @@ class WrapperTopic(Topic):
 
 
 class DefaultStubMethod(StubMethod):
+    """
+    Default implementation of an RPC stub (client-side).
+
+    This class generalizes RPC over pub/sub and queues. It performs an RPC call by:
+    1. Creating a unique temporary response queue.
+    2. Publishing an ``RpcRequest`` to the event bus on a channel named after the remote function.
+    3. Waiting for the ``RpcResponse`` on the temporary queue.
+
+    This design allows RPC to work on any event bus that implements basic pub/sub and queue primitives.
+    """
+
     def __init__(self, bus: EventBus, channel: str, spec=None, timeout=None, multi=False) -> None:
         super().__init__()
         self._bus = bus
@@ -217,6 +245,17 @@ class DefaultStubMethod(StubMethod):
 
 
 class DefaultSkeletonMethod:
+    """
+    Default implementation of an RPC skeleton (server-side).
+
+    This class handles the execution of remote calls. It is typically subscribed to a channel
+    representing a remote function. When an ``RpcRequest`` is received:
+    1. It unmarshals the arguments according to the target function's signature.
+    2. It invokes the local function.
+    3. It wraps the result (or exception) in an ``RpcResponse``.
+    4. It sends the response back to the requester via the queue specified in the request's ``response_channel``.
+    """
+
     _bus: EventBus
 
     _channel: str
@@ -274,6 +313,21 @@ class DefaultSkeletonMethod:
 
 
 class AbstractEventBus(EventBus, abc.ABC):
+    """
+    Base class for EventBus implementations that provides common RPC and subscription management logic.
+
+    This class implements the high-level RPC protocol (stubs and skeletons) by leveraging
+    the core pub/sub primitives. By generalizing RPC as a combination of a "publish" (for the request)
+    and a "queue" (for the response), concrete providers only need to implement the fundamental
+    messaging operations.
+
+    Subclasses must implement:
+    - ``_publish``: send an event to a channel.
+    - ``_subscribe``: register a callback for a channel.
+    - ``_unsubscribe``: unregister a callback.
+    - ``queue(name)``: provide a queue implementation for the given name.
+    """
+
     _subscribers: Dict[Tuple[str, bool], List[Callable]]
     _remote_fns: Dict[str, Callable]
 
@@ -318,6 +372,10 @@ class AbstractEventBus(EventBus, abc.ABC):
     def stub(
         self, fn: Callable | str, timeout: float | None = None, multi: bool = False
     ) -> StubMethod:
+        """
+        Creates an RPC stub for the given function or channel name.
+        The stub uses a ``StubMethod`` to handle the RPC invocation.
+        """
         if callable(fn):
             channel = get_remote_name(fn)
             spec = inspect.getfullargspec(fn)
@@ -330,6 +388,10 @@ class AbstractEventBus(EventBus, abc.ABC):
         return self._create_stub_method(channel, spec, timeout, multi)
 
     def expose(self, fn, channel=None):
+        """
+        Exposes a function as a remote procedure on the event bus.
+        It creates a skeleton method and subscribes it to the RPC channel.
+        """
         if channel is None:
             channel = get_remote_name(fn)
 
@@ -344,6 +406,9 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._bind_skeleton_method(skeleton, channel)
 
     def unexpose(self, fn: Callable):
+        """
+        Unexposes a previously exposed function.
+        """
         if callable(fn):
             channel = get_remote_name(fn)
         elif isinstance(fn, str):
