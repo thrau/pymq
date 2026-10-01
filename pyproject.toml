@@ -32,10 +32,10 @@ Repository = "https://github.com/thrau/pymq"
 
 [project.optional-dependencies]
 redis = ["redis>=3.2.1"]
-ipc = ["posix_ipc==1.0.4"]
+ipc = ["posix_ipc>=1.0.4"]
 full = [
     "redis>=3.2.1",
-    "posix_ipc==1.0.4",
+    "posix_ipc>=1.0.4",
 ]
 test = [
     "build",
