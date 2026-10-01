@@ -1,3 +1,8 @@
+"""
+Utilities for converting objects to and from serializable dictionaries, and for
+resolving fully qualified type names.
+"""
+
 import inspect
 import types
 import typing
@@ -5,22 +10,31 @@ from pydoc import locate
 
 if hasattr(typing, "_GenericAlias"):
 
-    def _is_generic(cls):
+    def _is_generic(cls: typing.Any) -> bool:
+        """
+        :return: True if ``cls`` is a typing generic alias
+        """
         return isinstance(cls, typing._GenericAlias)
 
 else:
     if hasattr(typing, "_Union"):
 
-        def _is_generic(cls):
+        def _is_generic(cls: typing.Any) -> bool:
+            """
+            :return: True if ``cls`` is a typing generic alias
+            """
             return isinstance(cls, typing.GenericMeta)
 
     else:
 
-        def _is_generic(cls):
+        def _is_generic(cls: typing.Any) -> bool:
+            """
+            :raises RuntimeError: always, if the running Python version is unsupported
+            """
             raise RuntimeError("Need python>=3.6")
 
 
-def is_generic(cls):
+def is_generic(cls: typing.Any) -> bool:
     """
     Detects any kind of generic, for example `List` or `List[int]`. This includes "special" types like
     Union and Tuple - anything that's subscriptable, basically.
@@ -28,11 +42,27 @@ def is_generic(cls):
     return _is_generic(cls)
 
 
-def load_class(classname):
+def load_class(classname: str) -> type:
+    """
+    Locate and return a class by its fully qualified name.
+
+    :param classname: the fully qualified name of the class
+    :return: the located class
+    """
     return locate(classname)
 
 
 def new_instance(cls: type, data: dict[str, typing.Any]) -> typing.Any:
+    """
+    Create an instance of ``cls`` from a dictionary of attribute values.
+
+    Values whose keys match a constructor argument are passed to the constructor; all
+    remaining values are assigned as attributes on the created object.
+
+    :param cls: the class to instantiate
+    :param data: the attribute values to populate the instance with
+    :return: the new instance
+    """
     # if available, use constructor args
     arg_names = inspect.getfullargspec(cls).args
     args = {k: v for k, v in data.items() if k in arg_names}
@@ -50,7 +80,7 @@ def new_instance(cls: type, data: dict[str, typing.Any]) -> typing.Any:
     return obj
 
 
-def fullname(o):
+def fullname(o: typing.Any) -> str:
     """
     Returns the fully qualified name of an object or a type.
 
@@ -96,13 +126,13 @@ def fullname(o):
 
 def deep_from_dict(doc: typing.Any, cls: type) -> typing.Any:
     """
-     The method attempts to de-serialize the given object into the given class, essentially reversing ``deep_to_dict``.
+    The method attempts to de-serialize the given object into the given class, essentially reversing ``deep_to_dict``.
 
     If the object is already of the correct type, it is returned as-is.
 
     :param doc: the object to de-serialize
     :param cls: the class to deserialize the object into
-    :return:
+    :return: the de-serialized object
     """
     if doc is None:
         return doc

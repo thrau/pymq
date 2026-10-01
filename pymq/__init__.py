@@ -1,3 +1,7 @@
+"""
+pymq: A simple message-oriented middleware library for Python IPC across machine boundaries.
+"""
+
 import atexit
 
 from pymq.core import (

@@ -1,3 +1,8 @@
+"""
+Core abstractions of pymq: the :class:`Queue`, :class:`Topic`, :class:`EventBus`,
+and :class:`StubMethod` interfaces, plus the module-level API backed by a global event bus.
+"""
+
 import abc
 import logging
 import threading
@@ -24,7 +29,7 @@ class Queue(abc.ABC, Generic[QItem]):
         """
         raise NotImplementedError
 
-    def get(self, block: bool = True, timeout: float = None) -> QItem:
+    def get(self, block: bool = True, timeout: float | None = None) -> QItem:
         """
         Get an item from the queue.
 
@@ -63,7 +68,7 @@ class Queue(abc.ABC, Generic[QItem]):
         """
         return self.qsize() == 0
 
-    def put_nowait(self, item: QItem):
+    def put_nowait(self, item: QItem) -> None:
         """
         Like a put but returns immediately. Depending on the provider and the queue parameters, this may
         raise an exception if the item cannot be put into the queue momentarily.
@@ -84,6 +89,9 @@ class Queue(abc.ABC, Generic[QItem]):
         return self.get(block=False)
 
     def close(self) -> None:
+        """
+        Close the queue. Depending on the provider this may release or unlink the underlying resource.
+        """
         pass
 
     def free(self) -> None:
@@ -158,7 +166,7 @@ class StubMethod:
     A callable stub for a remote method.
     """
 
-    def __call__(self, *args, **kwargs) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """
         Invoke the remote method.
 
@@ -168,7 +176,7 @@ class StubMethod:
         """
         raise NotImplementedError
 
-    def rpc(self, *args, **kwargs) -> Union[RpcResponse, List[RpcResponse]]:
+    def rpc(self, *args: Any, **kwargs: Any) -> Union[RpcResponse, List[RpcResponse]]:
         """
         Invoke the remote method and return the full RPC response.
 
@@ -196,7 +204,7 @@ class EventBus(abc.ABC):
         """
         raise NotImplementedError
 
-    def publish(self, event: Any, channel: str = None) -> Optional[int]:
+    def publish(self, event: Any, channel: str | None = None) -> Optional[int]:
         """
         Publish an event to a channel.
 
@@ -304,26 +312,49 @@ class _WrapperTopic(Topic):
     _name: str
     _is_pattern: bool
 
-    def __init__(self, name, is_pattern=False) -> None:
+    def __init__(self, name: str, is_pattern: bool = False) -> None:
+        """
+        Create a wrapper topic.
+
+        :param name: the name of the topic
+        :param is_pattern: True if the name is a pattern
+        """
         super().__init__()
         self._name = name
         self._is_pattern = is_pattern
 
     @property
     def name(self) -> str:
+        """
+        :return: the name of the topic
+        """
         return self._name
 
     @property
     def is_pattern(self) -> bool:
+        """
+        :return: True if the topic name is a pattern
+        """
         return self._is_pattern
 
     def publish(self, event: Any) -> int:
+        """
+        Publish an event to this topic.
+
+        :param event: the event to publish
+        :return: the number of subscribers that received the event
+        """
         if self.is_pattern:
             raise ValueError("Cannot publish to pattern topic")
         else:
             return publish(event, self.name)
 
     def subscribe(self, callback: Callable[[Any], None]) -> None:
+        """
+        Subscribe a callback to this topic.
+
+        :param callback: the callback to subscribe
+        """
         return subscribe(callback, self.name, self.is_pattern)
 
 
@@ -369,7 +400,10 @@ def subscriber(*args: Any, **kwargs: Any) -> Callable:
         subscribe(args[0], *args[1:], **kwargs)
         return args[0]
 
-    def _decorator(fn):
+    def _decorator(fn: Callable) -> Callable:
+        """
+        Subscribe the decorated function and return it unchanged.
+        """
         subscribe(fn, *args, **kwargs)
         return fn
 
@@ -462,7 +496,7 @@ def stub(fn: Callable | str, timeout: float | None = None, multi: bool = False) 
     return _bus.stub(fn, timeout, multi)
 
 
-def expose(fn: Callable, channel: str | None = None):
+def expose(fn: Callable, channel: str | None = None) -> None:
     """
     Expose a local method for remote invocation on the global event bus.
 
@@ -549,7 +583,10 @@ def remote(*args: Any, **kwargs: Any) -> Callable:
         expose(args[0], *args[1:], **kwargs)
         return args[0]
 
-    def _decorator(fn):
+    def _decorator(fn: Callable) -> Callable:
+        """
+        Expose the decorated function and return it unchanged.
+        """
         expose(fn, *args, **kwargs)
         return fn
 
