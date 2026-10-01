@@ -136,3 +136,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Hatch VCS hook generates this file during build
+pymq/version.py

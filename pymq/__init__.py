@@ -26,12 +26,12 @@ from pymq.core import (
     unsubscribe,
 )
 from pymq.exceptions import NoSuchRemoteError, RemoteInvocationError, RpcException
+from pymq.version import __version__
 
 name = "pymq"
 
-__version__ = "0.6.2"
-
 __all__ = [
+    "__version__",
     # server
     "init",
     "shutdown",
