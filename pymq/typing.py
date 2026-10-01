@@ -1,3 +1,8 @@
+"""
+Utilities for converting objects to and from serializable dictionaries, and for
+resolving fully qualified type names.
+"""
+
 import inspect
 import types
 import typing
@@ -5,22 +10,31 @@ from pydoc import locate
 
 if hasattr(typing, "_GenericAlias"):
 
-    def _is_generic(cls):
+    def _is_generic(cls: typing.Any) -> bool:
+        """
+        :return: True if ``cls`` is a typing generic alias
+        """
         return isinstance(cls, typing._GenericAlias)
 
 else:
     if hasattr(typing, "_Union"):
 
-        def _is_generic(cls):
+        def _is_generic(cls: typing.Any) -> bool:
+            """
+            :return: True if ``cls`` is a typing generic alias
+            """
             return isinstance(cls, typing.GenericMeta)
 
     else:
 
-        def _is_generic(cls):
+        def _is_generic(cls: typing.Any) -> bool:
+            """
+            :raises RuntimeError: always, if the running Python version is unsupported
+            """
             raise RuntimeError("Need python>=3.6")
 
 
-def is_generic(cls):
+def is_generic(cls: typing.Any) -> bool:
     """
     Detects any kind of generic, for example `List` or `List[int]`. This includes "special" types like
     Union and Tuple - anything that's subscriptable, basically.
@@ -28,11 +42,27 @@ def is_generic(cls):
     return _is_generic(cls)
 
 
-def load_class(classname):
+def load_class(classname: str) -> type:
+    """
+    Locate and return a class by its fully qualified name.
+
+    :param classname: the fully qualified name of the class
+    :return: the located class
+    """
     return locate(classname)
 
 
-def new_instance(cls, data):
+def new_instance(cls: type, data: dict[str, typing.Any]) -> typing.Any:
+    """
+    Create an instance of ``cls`` from a dictionary of attribute values.
+
+    Values whose keys match a constructor argument are passed to the constructor; all
+    remaining values are assigned as attributes on the created object.
+
+    :param cls: the class to instantiate
+    :param data: the attribute values to populate the instance with
+    :return: the new instance
+    """
     # if available, use constructor args
     arg_names = inspect.getfullargspec(cls).args
     args = {k: v for k, v in data.items() if k in arg_names}
@@ -50,7 +80,28 @@ def new_instance(cls, data):
     return obj
 
 
-def fullname(o):
+def fullname(o: typing.Any) -> str:
+    """
+    Returns the fully qualified name of an object or a type.
+
+    For types, it returns the module-qualified name unless it is a built-in type.
+    For instances, it returns the fully qualified name of the instance's class.
+    For functions and methods, it returns the module-qualified name.
+
+    Examples:
+        >>> fullname(int)
+        'int'
+        >>> fullname("foo")
+        'str'
+        >>> from pymq.core import EventBus
+        >>> fullname(EventBus)
+        'pymq.core.EventBus'
+        >>> fullname(EventBus().run)
+        'pymq.core.EventBus.run'
+
+    :param o: the object or type
+    :return: the fully qualified name
+    """
     # o.__module__ + "." + o.__class__.__qualname__ is an example in
     # this context of H.L. Mencken's "neat, plausible, and wrong."
     # Python makes no guarantees as to whether the __module__ special
@@ -73,7 +124,16 @@ def fullname(o):
         return module + "." + o.__name__
 
 
-def deep_from_dict(doc, cls):
+def deep_from_dict(doc: typing.Any, cls: type) -> typing.Any:
+    """
+    The method attempts to de-serialize the given object into the given class, essentially reversing ``deep_to_dict``.
+
+    If the object is already of the correct type, it is returned as-is.
+
+    :param doc: the object to de-serialize
+    :param cls: the class to deserialize the object into
+    :return: the de-serialized object
+    """
     if doc is None:
         return doc
 
@@ -143,7 +203,14 @@ def deep_from_dict(doc, cls):
     return new_instance(cls, result)
 
 
-def deep_to_dict(obj):
+def deep_to_dict(obj: typing.Any) -> dict[str, typing.Any] | typing.Any:
+    """
+    Convert an object to a serializable type. When passing objects, this will create a dictionary. Primitive types
+    are returned as is, and container types are recursively converted.
+
+    :param obj: the object to convert
+    :return: the converted object
+    """
     if obj is None:
         return None
 

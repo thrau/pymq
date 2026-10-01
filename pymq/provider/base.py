@@ -1,3 +1,11 @@
+"""
+Shared base implementations for event bus providers.
+
+This module contains the provider-agnostic pub/sub and RPC logic. Concrete providers
+implement the transport by overriding the ``_publish``, ``_subscribe``, ``_unsubscribe``,
+and ``queue`` methods.
+"""
+
 import abc
 import inspect
 import logging
@@ -14,14 +22,15 @@ from pymq.typing import deep_from_dict, fullname, load_class
 logger = logging.getLogger(__name__)
 
 
-def invoke_function(fn, data: str):
+def invoke_function(fn: Callable, data: str | bytes) -> None:
     """
     Invokes the passed function with the given data. Expects the data to be a JSON object that contains the serialized
     parameters for the function.
 
+    The function uses type hints of the target function to perform deep de-serialization of the input data.
+
     :param fn: the function to invoke (a callable)
     :param data: the json object containing the data
-    :return:
     """
     # passes the event to the first parameter of the listener
     try:
@@ -52,7 +61,15 @@ def invoke_function(fn, data: str):
         logger.exception(e)
 
 
-def inspect_listener(fn) -> str:
+def inspect_listener(fn: Callable) -> str:
+    """
+    Inspects a listener function to determine the event type it is interested in.
+    The function must have exactly one argument (excluding 'self' for methods) and that argument must be type-hinted.
+
+    :param fn: the listener function
+    :return: the fully qualified name of the event type
+    :raises ValueError: if the function signature does not match requirements
+    """
     spec = inspect.getfullargspec(fn)
 
     if hasattr(fn, "__self__"):
@@ -77,16 +94,31 @@ def inspect_listener(fn) -> str:
         return fullname(event_type)
 
 
-def get_remote_name(fn):
+def get_remote_name(fn: Callable) -> str:
+    """
+    Returns a unique remote name for a function, typically its module and qualified name.
+    """
     return fn.__module__ + "." + fn.__qualname__
 
 
 class WrapperTopic(Topic):
+    """
+    A Topic implementation that wraps an EventBus instance.
+    It delegates publish and subscribe operations back to the bus using its name.
+    """
+
     _bus: EventBus
     _name: str
     _is_pattern: bool
 
-    def __init__(self, bus: EventBus, name, is_pattern) -> None:
+    def __init__(self, bus: EventBus, name: str, is_pattern: bool) -> None:
+        """
+        Create a topic wrapper around an event bus.
+
+        :param bus: the event bus to delegate to
+        :param name: the name of the topic
+        :param is_pattern: True if the topic name is a pattern
+        """
         super().__init__()
         self._bus = bus
         self._name = name
@@ -94,24 +126,68 @@ class WrapperTopic(Topic):
 
     @property
     def name(self) -> str:
+        """
+        :return: the name of the topic
+        """
         return self._name
 
     @property
     def is_pattern(self) -> bool:
+        """
+        :return: True if the topic name is a pattern
+        """
         return self._is_pattern
 
-    def publish(self, event) -> int:
+    def publish(self, event: Any) -> int:
+        """
+        Publish an event to this topic.
+
+        :param event: the event to publish
+        :return: the number of subscribers that received the event
+        """
         if self.is_pattern:
             raise ValueError("Cannot publish to pattern topic")
         else:
             return self._bus.publish(event, self.name)
 
-    def subscribe(self, callback):
+    def subscribe(self, callback: Callable) -> None:
+        """
+        Subscribe a callback to this topic.
+
+        :param callback: the callback to subscribe
+        """
         return self._bus.subscribe(callback, self.name, self.is_pattern)
 
 
 class DefaultStubMethod(StubMethod):
-    def __init__(self, bus: EventBus, channel: str, spec=None, timeout=None, multi=False) -> None:
+    """
+    Default implementation of an RPC stub (client-side).
+
+    This class generalizes RPC over pub/sub and queues. It performs an RPC call by:
+    1. Creating a unique temporary response queue.
+    2. Publishing an ``RpcRequest`` to the event bus on a channel named after the remote function.
+    3. Waiting for the ``RpcResponse`` on the temporary queue.
+
+    This design allows RPC to work on any event bus that implements basic pub/sub and queue primitives.
+    """
+
+    def __init__(
+        self,
+        bus: EventBus,
+        channel: str,
+        spec: inspect.FullArgSpec | None = None,
+        timeout: float | None = None,
+        multi: bool = False,
+    ) -> None:
+        """
+        Create a stub method.
+
+        :param bus: the event bus used to send the request
+        :param channel: the channel (remote function name) to invoke
+        :param spec: the signature of the remote function, if known
+        :param timeout: timeout in seconds to wait for a response
+        :param multi: if True, the stub waits for and returns all responses
+        """
         super().__init__()
         self._bus = bus
         self._channel = channel
@@ -120,7 +196,14 @@ class DefaultStubMethod(StubMethod):
         self.timeout = timeout
         self.multi = multi
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """
+        Invoke the remote method.
+
+        :param args: positional arguments
+        :param kwargs: keyword arguments
+        :return: the (unmarshalled) result of the remote invocation
+        """
         try:
             response = self.rpc(*args, **kwargs)
         except NoSuchRemoteError:
@@ -131,11 +214,25 @@ class DefaultStubMethod(StubMethod):
         else:
             return self._unmarshal(response, raise_error=True)
 
-    def rpc(self, *args, **kwargs) -> Union[RpcResponse, List[RpcResponse]]:
+    def rpc(self, *args: Any, **kwargs: Any) -> Union[RpcResponse, List[RpcResponse]]:
+        """
+        Invoke the remote method and return the raw RPC response(s).
+
+        :param args: positional arguments
+        :param kwargs: keyword arguments
+        :return: the RPC response, or a list of responses if ``multi`` is True
+        """
         request = RpcRequest(self._channel, self._next_callback_queue(), args, kwargs)
         return self._invoke(request)
 
-    def _unmarshal(self, response: RpcResponse, raise_error=False):
+    def _unmarshal(self, response: RpcResponse, raise_error: bool = False) -> Any:
+        """
+        Unmarshal a response, returning or raising an error if the remote invocation failed.
+
+        :param response: the response to unmarshal
+        :param raise_error: if True, raise a :class:`RemoteInvocationError` on remote failure
+        :return: the unmarshalled result, or the error if ``raise_error`` is False
+        """
         if response.error:
             if isinstance(response.result, Exception):
                 result = RemoteInvocationError(response.result_type, *response.result.args)
@@ -149,13 +246,27 @@ class DefaultStubMethod(StubMethod):
 
         return deep_from_dict(response.result, load_class(response.result_type))
 
-    def _next_callback_queue(self):
+    def _next_callback_queue(self) -> str:
+        """
+        :return: a unique name for a temporary RPC response queue
+        """
         return "__rpc_" + str(uuid.uuid4())
 
-    def _get_response_queue(self, request: RpcRequest):
+    def _get_response_queue(self, request: RpcRequest) -> Any:
+        """
+        :param request: the RPC request
+        :return: the queue to read the response from
+        """
         return self._bus.queue(request.response_channel)
 
     def _invoke(self, request: RpcRequest) -> Union[RpcResponse, List[RpcResponse]]:
+        """
+        Publish the request and collect the response(s) from the response queue.
+
+        :param request: the RPC request to send
+        :return: the RPC response, or a list of responses if ``multi`` is True
+        :raises NoSuchRemoteError: if no subscriber handled the request
+        """
         # FIXME: the fundamental issue with this approach is that a pattern subscription '*' will break this. because
         #  such a subscription is probably just listening, and a real remote object, the expectation that there will
         #  be n results may not be correct
@@ -201,7 +312,7 @@ class DefaultStubMethod(StubMethod):
         finally:
             self._finalize_response_queue(queue)
 
-    def _finalize_response_queue(self, queue):
+    def _finalize_response_queue(self, queue: Any) -> None:
         """
         Hook to do something with the queue used as response channel once it's no longer needed.
 
@@ -209,7 +320,7 @@ class DefaultStubMethod(StubMethod):
         """
         pass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self._spec is None:
             return "%s()" % self._channel
         else:
@@ -217,6 +328,17 @@ class DefaultStubMethod(StubMethod):
 
 
 class DefaultSkeletonMethod:
+    """
+    Default implementation of an RPC skeleton (server-side).
+
+    This class handles the execution of remote calls. It is typically subscribed to a channel
+    representing a remote function. When an ``RpcRequest`` is received:
+    1. It unmarshals the arguments according to the target function's signature.
+    2. It invokes the local function.
+    3. It wraps the result (or exception) in an ``RpcResponse``.
+    4. It sends the response back to the requester via the queue specified in the request's ``response_channel``.
+    """
+
     _bus: EventBus
 
     _channel: str
@@ -224,13 +346,25 @@ class DefaultSkeletonMethod:
     _fn_spec: inspect.FullArgSpec
 
     def __init__(self, bus: EventBus, channel: str, fn: Callable) -> None:
+        """
+        Create a skeleton method wrapping a local function.
+
+        :param bus: the event bus used to send the response
+        :param channel: the RPC channel this skeleton is bound to
+        :param fn: the local function to expose
+        """
         super().__init__()
         self._bus = bus
         self._channel = channel
         self._fn = fn
         self._fn_spec = inspect.getfullargspec(fn)
 
-    def __call__(self, request: RpcRequest):
+    def __call__(self, request: RpcRequest) -> None:
+        """
+        Execute an incoming RPC request and send the result back to the caller.
+
+        :param request: the incoming RPC request
+        """
         try:
             result = self._invoke(request)
             response = RpcResponse(request.fn, result, fullname(result))
@@ -240,10 +374,22 @@ class DefaultSkeletonMethod:
 
         self._queue_response(request, response)
 
-    def _queue_response(self, request, response):
+    def _queue_response(self, request: RpcRequest, response: RpcResponse) -> None:
+        """
+        Send the response back to the requester's response queue.
+
+        :param request: the original request
+        :param response: the response to send
+        """
         self._bus.queue(request.response_channel).put(response)
 
     def _invoke(self, request: RpcRequest) -> Any:
+        """
+        Unmarshal the request arguments according to the target function's signature and call it.
+
+        :param request: the RPC request
+        :return: the return value of the invoked function
+        """
         spec = self._fn_spec
 
         if not spec.args:
@@ -274,24 +420,65 @@ class DefaultSkeletonMethod:
 
 
 class AbstractEventBus(EventBus, abc.ABC):
+    """
+    Base class for EventBus implementations that provides common RPC and subscription management logic.
+
+    This class implements the high-level RPC protocol (stubs and skeletons) by leveraging
+    the core pub/sub primitives. By generalizing RPC as a combination of a "publish" (for the request)
+    and a "queue" (for the response), concrete providers only need to implement the fundamental
+    messaging operations.
+
+    Subclasses must implement:
+    - ``_publish``: send an event to a channel.
+    - ``_subscribe``: register a callback for a channel.
+    - ``_unsubscribe``: unregister a callback.
+    - ``queue(name)``: provide a queue implementation for the given name.
+    """
+
     _subscribers: Dict[Tuple[str, bool], List[Callable]]
     _remote_fns: Dict[str, Callable]
 
     def __init__(self) -> None:
+        """
+        Create an abstract event bus.
+        """
         super().__init__()
         self._subscribers = defaultdict(list)
         self._remote_fns = dict()
 
-    def topic(self, name: str, pattern: bool = False):
+    def topic(self, name: str, pattern: bool = False) -> Topic:
+        """
+        Get a topic by name.
+
+        :param name: the name of the topic
+        :param pattern: if True, the name is treated as a pattern
+        :return: the topic instance
+        """
         return WrapperTopic(self, name, pattern)
 
-    def publish(self, event, channel=None) -> Optional[int]:
+    def publish(self, event: Any, channel: str | None = None) -> Optional[int]:
+        """
+        Publish an event to a channel.
+
+        :param event: the event to publish
+        :param channel: the channel to publish to (defaults to the event class name)
+        :return: the number of subscribers that received the event
+        """
         if channel is None:
             channel = fullname(event)
 
         return self._publish(event, channel)
 
-    def subscribe(self, callback, channel=None, pattern=False):
+    def subscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
+        """
+        Subscribe a callback to a channel.
+
+        :param callback: the callback to subscribe
+        :param channel: the channel to subscribe to (defaults to the first argument type hint)
+        :param pattern: if True, the channel name is treated as a pattern
+        """
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -301,7 +488,16 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._subscribers[(channel, pattern)].append(callback)
         self._subscribe(callback, channel, pattern)
 
-    def unsubscribe(self, callback, channel=None, pattern=False):
+    def unsubscribe(
+        self, callback: Callable, channel: str | None = None, pattern: bool = False
+    ) -> None:
+        """
+        Unsubscribe a callback from a channel.
+
+        :param callback: the callback to unsubscribe
+        :param channel: the channel to unsubscribe from
+        :param pattern: if True, the channel name is treated as a pattern
+        """
         if channel is None:
             channel = inspect_listener(callback)
             pattern = False
@@ -315,7 +511,13 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         self._unsubscribe(callback, channel, pattern)
 
-    def stub(self, fn, timeout=None, multi=False) -> StubMethod:
+    def stub(
+        self, fn: Callable | str, timeout: float | None = None, multi: bool = False
+    ) -> StubMethod:
+        """
+        Creates an RPC stub for the given function or channel name.
+        The stub uses a ``StubMethod`` to handle the RPC invocation.
+        """
         if callable(fn):
             channel = get_remote_name(fn)
             spec = inspect.getfullargspec(fn)
@@ -327,7 +529,11 @@ class AbstractEventBus(EventBus, abc.ABC):
 
         return self._create_stub_method(channel, spec, timeout, multi)
 
-    def expose(self, fn, channel=None):
+    def expose(self, fn: Callable, channel: str | None = None) -> None:
+        """
+        Exposes a function as a remote procedure on the event bus.
+        It creates a skeleton method and subscribes it to the RPC channel.
+        """
         if channel is None:
             channel = get_remote_name(fn)
 
@@ -341,7 +547,10 @@ class AbstractEventBus(EventBus, abc.ABC):
         self._remote_fns[channel] = skeleton
         self._bind_skeleton_method(skeleton, channel)
 
-    def unexpose(self, fn):
+    def unexpose(self, fn: Callable) -> None:
+        """
+        Unexposes a previously exposed function.
+        """
         if callable(fn):
             channel = get_remote_name(fn)
         elif isinstance(fn, str):
@@ -356,23 +565,56 @@ class AbstractEventBus(EventBus, abc.ABC):
         del self._remote_fns[channel]
         self._unbind_skeleton_method(skeleton, channel)
 
-    def _create_stub_method(self, channel, spec, timeout, multi):
+    def _create_stub_method(
+        self, channel: str, spec: inspect.FullArgSpec | None, timeout: float | None, multi: bool
+    ) -> StubMethod:
+        """
+        Create a stub method for the given channel. Override to use a custom stub implementation.
+
+        :param channel: the remote channel to invoke
+        :param spec: the signature of the remote function, if known
+        :param timeout: timeout in seconds to wait for a response
+        :param multi: if True, wait for all responses
+        :return: the stub method
+        """
         return DefaultStubMethod(self, channel, spec, timeout, multi)
 
-    def _create_skeleton_method(self, channel, fn) -> Callable[[RpcRequest], None]:
+    def _create_skeleton_method(self, channel: str, fn: Callable) -> Callable[[RpcRequest], None]:
+        """
+        Create a skeleton method for the given function. Override to use a custom skeleton implementation.
+
+        :param channel: the RPC channel to bind the skeleton to
+        :param fn: the local function to expose
+        :return: the callable skeleton method
+        """
         return DefaultSkeletonMethod(self, channel, fn)
 
-    def _bind_skeleton_method(self, skeleton, channel: str):
+    def _bind_skeleton_method(self, skeleton: Callable[[RpcRequest], None], channel: str) -> None:
+        """
+        Subscribe the given skeleton to its RPC channel.
+        """
         self.subscribe(skeleton, channel, False)
 
-    def _unbind_skeleton_method(self, skeleton, channel: str):
+    def _unbind_skeleton_method(self, skeleton: Callable[[RpcRequest], None], channel: str) -> None:
+        """
+        Unsubscribe the given skeleton from its RPC channel.
+        """
         self.unsubscribe(skeleton, channel, False)
 
-    def _publish(self, event, channel: str) -> Optional[int]:
+    def _publish(self, event: Any, channel: str) -> Optional[int]:
+        """
+        Provider-specific implementation of publishing an event to a channel.
+        """
         raise NotImplementedError
 
-    def _subscribe(self, callback: Callable, channel: str, pattern: bool):
+    def _subscribe(self, callback: Callable, channel: str, pattern: bool) -> None:
+        """
+        Provider-specific implementation of subscribing a callback to a channel.
+        """
         raise NotImplementedError
 
-    def _unsubscribe(self, callback: Callable, channel: str, pattern: bool):
+    def _unsubscribe(self, callback: Callable, channel: str, pattern: bool) -> None:
+        """
+        Provider-specific implementation of unsubscribing a callback from a channel.
+        """
         raise NotImplementedError
